@@ -224,9 +224,12 @@ public sealed class Store : IDisposable
         foreach (var o in Range(from, to))
         {
             if (o.Done || notified.Contains((o.Id, o.On))) continue;
-            var late = now - o.FireAt(allDayAt);
-            if (late < TimeSpan.Zero) continue;                    // chua den luc
-            if (late > TimeSpan.FromHours(graceHours)) continue;   // qua han qua lau
+            if (now < o.FireAt(allDayAt)) continue;   // chua den luc bao
+
+            // Han do tinh tu luc VIEC dien ra, khong phai tu luc dang le bao. Neu
+            // tinh tu FireAt thi viec dat "nhac truoc 1 ngay" ma may tat suot cua so
+            // 12h do se qua han truoc ca khi den gio, va mat hut luon — khong bao gi.
+            if (now - o.When(allDayAt) > TimeSpan.FromHours(graceHours)) continue;
             due.Add(o);
         }
         due.Sort((a, b) => a.FireAt(allDayAt).CompareTo(b.FireAt(allDayAt)));
@@ -281,6 +284,26 @@ public sealed class Store : IDisposable
         {
             Forget(t.Id);
         }
+    }
+
+    /// <summary>
+    /// Sua task roi tick xong cho dung lan lap nguoi dung dang mo. Tra ve ngay ma
+    /// dau tick thuc su roi vao.
+    ///
+    /// Doi ngay goc thi CA CHUOI truot theo, nen lan lap dang xem cung truot bang tung
+    /// ay ngay. Neu cu tick vao ngay cu thi dau tick roi vao mot ngay khong con la lan
+    /// lap nao nua: nguoi dung thay tick bay mat, con completions thi con lai mot dong
+    /// mo coi khong bao gio doc toi.
+    /// </summary>
+    public DateOnly UpdateAndSetDone(TaskRow t, DateOnly viewing, bool done)
+    {
+        var old = Get(t.Id);
+        Update(t);
+
+        var moved = old is null ? viewing : viewing.AddDays(t.Date.DayNumber - old.Date.DayNumber);
+        if (moved != viewing) SetDone(t.Id, viewing, false);   // don dau tick o ngay cu
+        SetDone(t.Id, moved, done);
+        return moved;
     }
 
     static void Bind(SqliteCommand cmd, TaskRow t)

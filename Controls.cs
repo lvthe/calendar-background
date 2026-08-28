@@ -152,7 +152,14 @@ public sealed class Field : Painted
         Box.ForeColor = Theme.Text;
         Box.Enter += (_, _) => { _focus = true; Invalidate(); };
         Box.Leave += (_, _) => { _focus = false; Invalidate(); };
-        if (multiline) Box.ScrollBars = ScrollBars.Vertical;
+        if (multiline)
+        {
+            // AcceptsReturn mac dinh la FALSE ngay ca khi Multiline: Enter se bam
+            // AcceptButton cua form thay vi xuong dong, tuc go ghi chu 2 dong la
+            // form luu luon
+            Box.AcceptsReturn = true;
+            Box.ScrollBars = ScrollBars.Vertical;
+        }
         Controls.Add(Box);
 
         _padX = Math.Max(6, font.Height / 2);
@@ -233,7 +240,14 @@ public sealed class StepBox : Painted
         _box.Enter += (_, _) => { _focus = true; Invalidate(); };
         _box.Leave += (_, _) => { _focus = false; Invalidate(); Committed?.Invoke(this, EventArgs.Empty); };
         _box.KeyDown += OnKey;
-        _box.MouseWheel += (_, e) => Bump(Math.Sign(e.Delta));
+        // Phai danh dau Handled. Control.WmMouseWheel chi goi DefWndProc khi con
+        // chua ai xu ly, ma DefWindowProc cua WM_MOUSEWHEEL thi day tiep len control
+        // cha — tuc StepBox.OnMouseWheel ban them lan nua va mot nac cuon nhay 2 buoc.
+        _box.MouseWheel += (_, e) =>
+        {
+            Bump(Math.Sign(e.Delta));
+            if (e is HandledMouseEventArgs h) h.Handled = true;
+        };
         Controls.Add(_box);
 
         _padY = Math.Max(4, font.Height / 3);

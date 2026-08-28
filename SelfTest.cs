@@ -12,6 +12,16 @@ static class SelfTest
                        int lead = 0, TimeOnly? end = null, string tag = "work") =>
         new(0, title, date, at, end, tag, rrule, lead, null, null);
 
+    /// <summary>Cac o nhap nhieu dong trong cay control — de do chieu cao that sau layout.</summary>
+    static IEnumerable<Field> Multiline(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            if (c is Field { Box.Multiline: true } f) yield return f;
+            foreach (var d in Multiline(c)) yield return d;
+        }
+    }
+
     public static int Run(string outFile)
     {
         var sb = new StringBuilder();
@@ -146,6 +156,17 @@ static class SelfTest
                 Ok("nhac truoc 1 ngay: hom nay 09:00 chua bao",
                     !s.DueNow(today.ToDateTime(new TimeOnly(9, 0)), allDayAt, 12).Any(o => o.Id == lead1d));
 
+                // May tat suot cua so nhac-truoc: tinh han tu FireAt thi viec nay qua
+                // han (24.5h) truoc ca khi den gio, va mat hut luon. Han phai tinh tu
+                // luc viec dien ra.
+                long missed = s.Add(Row("Bay som", today.AddDays(1), new TimeOnly(6, 0), "NONE", lead: 1440));
+                Ok("lead 1 ngay bi lo van bao luc den gio",
+                    s.DueNow(today.AddDays(1).ToDateTime(new TimeOnly(6, 30)), allDayAt, 12)
+                       .Any(o => o.Id == missed));
+                Ok("lead 1 ngay: qua gio viec hon grace thi moi im",
+                    !s.DueNow(today.AddDays(1).ToDateTime(new TimeOnly(23, 0)), allDayAt, 12)
+                       .Any(o => o.Id == missed));
+
                 // ---------- gio ket thuc + sua ----------
 
                 long ranged = s.Add(Row("Hop dai", today, new TimeOnly(9, 0), "NONE", end: new TimeOnly(10, 30)));
@@ -163,6 +184,30 @@ static class SelfTest
                 var after = s.Get(ranged)!;
                 Ok("sua tieu de / noi / ghi chu",
                     after.Title == "Doi ten" && after.Location == "Phong 3" && after.Note == "ghi chu");
+
+                // ---------- doi ngay roi tick xong ----------
+
+                long shifted = s.Add(Row("Doi lich", today, new TimeOnly(8, 0), "NONE"));
+                var landed = s.UpdateAndSetDone(s.Get(shifted)! with { Date = today.AddDays(3) }, today, true);
+                Ok("doi ngay roi tick xong thi dau tick di theo sang ngay moi",
+                    landed == today.AddDays(3)
+                    && s.Range(today.AddDays(3), today.AddDays(3)).Any(o => o.Id == shifted && o.Done)
+                    && !s.Range(today, today).Any(o => o.Id == shifted),
+                    landed.ToString("yyyy-MM-dd"));
+
+                long kept = s.Add(Row("Giu nguyen ngay", today, new TimeOnly(11, 0), "NONE"));
+                var same = s.UpdateAndSetDone(s.Get(kept)! with { Title = "Chi doi ten" }, today, true);
+                Ok("khong doi ngay thi tick van o dung lan lap dang xem",
+                    same == today && s.Range(today, today).Any(o => o.Id == kept && o.Done),
+                    same.ToString("yyyy-MM-dd"));
+
+                long series = s.Add(Row("Chuoi tuan", today, new TimeOnly(8, 0), "WEEKLY"));
+                var slid = s.UpdateAndSetDone(s.Get(series)! with { Date = today.AddDays(1) },
+                                              today.AddDays(7), true);
+                Ok("doi goc chuoi lap: lan dang xem truot dung so ngay",
+                    slid == today.AddDays(8)
+                    && s.Range(slid, slid).Any(o => o.Id == series && o.Done),
+                    slid.ToString("yyyy-MM-dd"));
 
                 // ---------- xoa ----------
 
@@ -193,6 +238,24 @@ static class SelfTest
                                            today, true);
             Ok("EventForm dung duoc ca che do them va sua",
                 add.Result is null && !add.DeleteRequested && edit.DoneChecked);
+
+            // Chieu cao o ghi chu phai do layout that quyet dinh, nen phai ep tao
+            // handle roi PerformLayout — khong thi doc ra so trong ctor, vo nghia.
+            add.CreateControl();
+            add.PerformLayout();
+            var note = Multiline(add).FirstOrDefault();
+
+            // Field.GetPreferredSize chi tra chieu cao MOT dong, nhung Field khong bat
+            // AutoSize nen TableLayoutPanel lay dung Height da dat — o ghi chu cao that.
+            // Ai do bat AutoSize len sau nay la no co ve 1 dong ngay, nen chot lai bang
+            // test thay vi tin vao doc code.
+            Ok("o ghi chu cao nhieu dong, khong bi layout bop ve 1 dong",
+                note is not null && note.Height >= note.Box.Font.Height * 3,
+                note is null ? "khong thay o multiline"
+                             : $"cao {note.Height}px, 1 dong = {note.Box.Font.Height}px");
+
+            Ok("o ghi chu nhan Enter de xuong dong, khong bam nut Luu",
+                note is not null && note.Box.AcceptsReturn);
         }
         catch (Exception e) { Ok("EventForm dung duoc ca che do them va sua", false, e.Message); }
 

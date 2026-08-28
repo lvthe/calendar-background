@@ -205,9 +205,9 @@ public sealed class MainWindow : Form
         }
 
         if (f.Result is null) return;
-        _store.Update(f.Result);
-        _store.SetDone(o.Id, o.On, f.DoneChecked);
-        Log.Write($"sua #{o.Id} \"{f.Result.Title}\" {f.Result.Date:yyyy-MM-dd} lead={f.Result.LeadMinutes}");
+        var on = _store.UpdateAndSetDone(f.Result, o.On, f.DoneChecked);
+        Log.Write($"sua #{o.Id} \"{f.Result.Title}\" {f.Result.Date:yyyy-MM-dd} lead={f.Result.LeadMinutes}"
+                  + (on == o.On ? "" : $" (tick doi sang {on:yyyy-MM-dd})"));
         Done();
     }
 

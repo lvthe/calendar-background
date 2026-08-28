@@ -9,7 +9,7 @@ Log: `%LOCALAPPDATA%\deskcal\deskcal.log`.
 
 ## Build và chạy
 
-Cần .NET SDK 9 (đã có sẵn trên máy này).
+Cần .NET SDK 10.
 
 ```
 dotnet run
@@ -125,6 +125,9 @@ cửa sổ console — app là WinExe.
 - Bảng `notified(task_id, occurs_on)` đảm bảo mỗi lần lặp chỉ bắn một lần.
 - **Bắn bù**: lượt quét chạy ngay khi app khởi động, nên logon xong là bắt hết việc đã
   quá giờ. Nhưng **quá hạn hơn 12 giờ thì im** — khỏi sáng mở máy ăn một loạt toast.
+  Ngưỡng 12 giờ đó đếm từ lúc **việc diễn ra**, không phải từ lúc đáng lẽ bắn. Đếm từ
+  lúc đáng lẽ bắn thì việc đặt "nhắc trước 1 ngày" mà máy tắt suốt cửa sổ đó sẽ quá hạn
+  trước cả khi đến giờ, và mất hút luôn — không báo gì cả.
 - **Tối đa 5 toast mỗi lượt**, phần dư đợi lượt sau và được ghi vào log — không âm thầm cắt.
 - Đổi ngày / giờ / kiểu lặp / nhắc-trước của việc → xoá dấu đã-bắn để nhắc lại.
 
@@ -153,7 +156,7 @@ admin) để toast hiện tên "deskcal". Nếu WinRT lỗi hẳn thì tự đ�
 | `deskcal.exe --open` | Chạy nền và mở luôn cửa sổ lịch |
 | `deskcal.exe --add "Họp team\|mai\|14:30\|work\|WEEKLY"` | Thêm việc rồi thoát |
 | `deskcal.exe --test-toast` | Bắn một toast thử |
-| `deskcal.exe --self-test out.txt` | Chạy 41 test, ghi kết quả ra file |
+| `deskcal.exe --self-test out.txt` | Chạy 48 test, ghi kết quả ra file |
 
 `--add` chỉ bắt buộc phần tiêu đề, các phần sau có mặc định. Nối lại hết phần sau `--add`
 nên quên bọc nháy cũng không mất chữ. Tiện để gắn hotkey hoặc gọi từ script.
@@ -245,7 +248,7 @@ EventForm.cs     form thêm/sửa việc
 TrayApp.cs       NotifyIcon + context menu
 Theme.cs         màu theo theme hệ thống, font, MenuRenderer
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
-SelfTest.cs      41 test
+SelfTest.cs      48 test
 ```
 
 Bốn bảng: `tasks` (việc gốc), `completions(task_id, occurs_on)` (tick xong theo từng lần
@@ -255,14 +258,15 @@ lặp), `notified(task_id, occurs_on)` (đã bắn toast).
 
 ```
 dotnet build
-bin\Debug\net9.0-windows10.0.19041.0\win-x64\deskcal.exe --self-test out.txt
+bin\Debug\net10.0-windows10.0.19041.0\win-x64\deskcal.exe --self-test out.txt
 ```
 
 App là WinExe nên không có stdout — kết quả ghi ra file, exit code 0 là pass hết.
 Lưu ý PowerShell **không chờ** WinExe, phải dùng `Start-Process -Wait` nếu muốn đọc
 file ngay sau đó.
 
-41 test, phủ lịch lặp, điều kiện nhắc, nhắc-trước, parser ngày/giờ, và ctor hai form.
+48 test, phủ lịch lặp, điều kiện nhắc, nhắc-trước, parser ngày/giờ, ctor hai form, và
+layout ô ghi chú.
 
 ## So với bản Node cũ
 
