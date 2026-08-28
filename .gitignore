@@ -1,0 +1,20 @@
+# build
+bin/
+obj/
+dist/
+
+# Du lieu va log cua nguoi dung — KHONG dua len repo.
+# DB that nam o %LOCALAPPDATA%\deskcal, thu muc data/ chi la ban cu con lai.
+data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# IDE / OS
+.vs/
+.idea/
+*.user
+*.suo
+Thumbs.db
+desktop.ini

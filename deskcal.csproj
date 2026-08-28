@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <AssemblyName>deskcal</AssemblyName>
+    <RootNamespace>Deskcal</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- publish ra 1 file .exe duy nhat. SelfContained=false vi may da co
+         Microsoft.WindowsDesktop.App 9.x: 134MB xuong con vai MB. Muon ban chay
+         duoc tren may khong cai .NET: dotnet publish -c Release -o dist -p:SelfContained=true -->
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>embedded</DebugType>
+
+    <!-- WFO1000 doi moi property public tren Control/Form phai khai bao
+         DesignerSerializationVisibility. Toan bo UI o day dung bang code, khong co
+         file .Designer.cs nao, nen quy tac do khong ap dung. -->
+    <NoWarn>$(NoWarn);WFO1000</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- khoi keo .cs la lac tu cay node cu vao build -->
+    <Compile Remove="node_modules/**" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.2" />
+  </ItemGroup>
+
+</Project>
