@@ -28,8 +28,17 @@ public sealed class CalendarView : Control
     /// <summary>Bam vao o trang thai ben trai chip — doi xong / chua xong.</summary>
     public event Action<Occurrence>? StatusToggled;
 
+    // Khi ve ra wallpaper thi khong co control that: kich thuoc va ti le lay tu day
+    // thay vi tu Width/Height/DeviceDpi. Hit-test dung chung ColX/RowY nen phai di qua
+    // W/H/S luon, khong duoc doc thang Width/Height — lech mot cai la bam sai o ngay.
+    Size? _renderSize;
+    float? _renderScale;
+
+    int W => _renderSize?.Width ?? Width;
+    int H => _renderSize?.Height ?? Height;
+
     // ---- so do theo DPI (goc tinh o 96 dpi) ----
-    float S => DeviceDpi / 96f;
+    float S => _renderScale ?? DeviceDpi / 96f;
     int Px(double logical) => (int)Math.Round(logical * S);
     int HeaderH => Px(34);
     int DayNumH => Px(32);
@@ -81,8 +90,8 @@ public sealed class CalendarView : Control
 
     // ---------- toa do ----------
 
-    int ColX(int i) => Width * i / 7;
-    int RowY(int r) => HeaderH + (Height - HeaderH) * r / Rows;
+    int ColX(int i) => W * i / 7;
+    int RowY(int r) => HeaderH + (H - HeaderH) * r / Rows;
 
     IEnumerable<(Rectangle Box, DateOnly Date, int Col)> Cells()
     {
@@ -117,11 +126,27 @@ public sealed class CalendarView : Control
 
     // ---------- ve ----------
 
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void OnPaint(PaintEventArgs e) => PaintCore(e.Graphics);
+
+    /// <summary>
+    /// Ve lich ra mot Graphics bat ky o kich thuoc bat ky — dung cho wallpaper.
+    /// Tra control ve trang thai cu o finally, khong thi hit-test cua cua so that
+    /// se dung nham so do cua wallpaper.
+    /// </summary>
+    public void Render(Graphics g, Size size, float scale)
+    {
+        _renderSize = size;
+        _renderScale = scale;
+        try { PaintCore(g); }
+        finally { _renderSize = null; _renderScale = null; }
+    }
+
+    void PaintCore(Graphics g)
     {
         Theme.Refresh();
-        var g = e.Graphics;
-        g.Clear(Theme.CellBg);
+        // KHONG dung g.Clear: no xoa toan bo surface, ma khi ve ra wallpaper thi
+        // surface do con dang giu anh nen phia duoi.
+        using (var bg = new SolidBrush(Theme.CellBg)) g.FillRectangle(bg, 0, 0, W, H);
 
         DrawWeekHeader(g);
 
@@ -143,6 +168,14 @@ public sealed class CalendarView : Control
         DrawGrid(g);
     }
 
+    /// <summary>
+    /// Font tinh bang point. O cua so that, WinForms da tu phong theo DPI he thong
+    /// nen khong duoc nhan them. Nhung khi ve ra bitmap thi khong ai phong ho, phai
+    /// tu nhan theo scale — khong thi o thi to ma chu van be xiu.
+    /// </summary>
+    Font Fnt(float size, FontStyle style = FontStyle.Regular) =>
+        Theme.Font(_renderScale is { } r ? size * r : size, style);
+
     // NoClipping o moi lan ve chu: dau nang tieng Viet (ậ ẹ ọ) nam thap hon duong
     // descender cua font, GDI cat theo rect nen thieu no la mat dau.
     const TextFormatFlags Flat =
@@ -151,7 +184,7 @@ public sealed class CalendarView : Control
     void DrawWeekHeader(Graphics g)
     {
         string[] names = ["CN", "Hai", "Ba", "Tư", "Năm", "Sáu", "Bảy"];
-        var font = Theme.Font(9.5f, FontStyle.Bold);
+        var font = Fnt(9.5f, FontStyle.Bold);
         for (int c = 0; c < 7; c++)
         {
             var box = Rectangle.FromLTRB(ColX(c), 0, ColX(c + 1), HeaderH);
@@ -160,7 +193,7 @@ public sealed class CalendarView : Control
                 Flat | TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
         using var pen = new Pen(Theme.Grid);
-        g.DrawLine(pen, 0, HeaderH - 1, Width, HeaderH - 1);
+        g.DrawLine(pen, 0, HeaderH - 1, W, HeaderH - 1);
     }
 
     void DrawCellBg(Graphics g, Rectangle box, DateOnly date, int col, bool outside)
@@ -182,7 +215,7 @@ public sealed class CalendarView : Control
     void DrawDayNumber(Graphics g, Rectangle box, DateOnly date, int col, bool outside, DateOnly today)
     {
         string label = date.Day.ToString();
-        var font = Theme.Font(10f, date == today ? FontStyle.Bold : FontStyle.Regular);
+        var font = Fnt(10f, date == today ? FontStyle.Bold : FontStyle.Regular);
 
         if (date == today)
         {
@@ -230,7 +263,7 @@ public sealed class CalendarView : Control
 
         DrawStatus(g, StatusBox(chip), o, hot);
 
-        var font = Theme.Font(9f, o.Done ? FontStyle.Strikeout : FontStyle.Regular);
+        var font = Fnt(9f, o.Done ? FontStyle.Strikeout : FontStyle.Regular);
         var ink = o.Done ? Theme.Muted : Theme.TagColor(o.Tag);
         string text = o.At is null ? o.Title : $"{o.TimeLabel}  {o.Title}";
         int left = StatusBox(chip).Right + Px(5);
@@ -276,15 +309,15 @@ public sealed class CalendarView : Control
     void DrawMore(Graphics g, Rectangle box, int more)
     {
         var slot = new Rectangle(box.Left + Px(6), box.Top, box.Width - Px(6), box.Height);
-        TextRenderer.DrawText(g, $"+{more} việc nữa", Theme.Font(9f), slot, Theme.Muted,
+        TextRenderer.DrawText(g, $"+{more} việc nữa", Fnt(9f), slot, Theme.Muted,
             Flat | TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
     }
 
     void DrawGrid(Graphics g)
     {
         using var pen = new Pen(Theme.Grid);
-        for (int c = 1; c < 7; c++) g.DrawLine(pen, ColX(c), HeaderH, ColX(c), Height);
-        for (int r = 1; r < Rows; r++) g.DrawLine(pen, 0, RowY(r), Width, RowY(r));
+        for (int c = 1; c < 7; c++) g.DrawLine(pen, ColX(c), HeaderH, ColX(c), H);
+        for (int r = 1; r < Rows; r++) g.DrawLine(pen, 0, RowY(r), W, RowY(r));
     }
 
     // ---------- chuot ----------

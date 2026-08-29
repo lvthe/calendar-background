@@ -18,14 +18,15 @@ dotnet build
 dotnet publish -c Release -o dist
 ```
 
-Chạy test (48 test):
+Chạy test (56 test):
 
 ```
 bin\Debug\net10.0-windows10.0.19041.0\win-x64\deskcal.exe --self-test out.txt
 ```
 
 Các flag khác: `--open` (mở luôn cửa sổ lịch), `--add "Tiêu đề|mai|14:30|work|WEEKLY"`,
-`--test-toast`.
+`--test-toast`, `--wallpaper-preview out.bmp [rong cao]` (sinh ảnh nền ra file mà
+không đổi wallpaper thật — dùng để soi bố cục).
 
 ### Hai cái bẫy khi chạy lệnh
 
@@ -53,9 +54,10 @@ Clock.cs         mặt đồng hồ chọn giờ
 Theme.cs         bảng màu theo theme hệ thống, font, helper vẽ, MenuRenderer
 MainWindow.cs    cửa sổ lịch + header điều hướng
 EventForm.cs     form thêm/sửa việc
+Wallpaper.cs     ve lich ra anh, ghep len anh nen, dat lam wallpaper
 TrayApp.cs       NotifyIcon + context menu
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
-SelfTest.cs      48 test
+SelfTest.cs      56 test
 ```
 
 Bốn bảng SQLite: `tasks` (việc gốc), `completions(task_id, occurs_on)` (xong theo từng
@@ -72,7 +74,7 @@ lần lặp), `notified(task_id, occurs_on)` (đã bắn toast).
 
 ## Bẫy đã gặp — đừng đạp lại
 
-Năm cái này đều tốn nhiều thời gian mới tìm ra, và **không cái nào phát hiện được bằng
+Sáu cái này đều tốn nhiều thời gian mới tìm ra, và **không cái nào phát hiện được bằng
 cách đọc code**. Chỉ chụp ảnh cửa sổ ra xem mới thấy.
 
 1. **`TextFormatFlags.NoClipping` là bắt buộc khi vẽ chữ Việt bằng `TextRenderer`.**
@@ -98,6 +100,14 @@ cách đọc code**. Chỉ chụp ảnh cửa sổ ra xem mới thấy.
    hồ), viền màu lấn hết nét nên từng con số hiện ra một màu khác nhau. Chữ số thì
    dùng `Graphics.DrawString` + `TextRenderingHint.AntiAliasGridFit` (antialias xám).
    Chữ tiếng Việt vẫn phải dùng `TextRenderer` vì lý do (1).
+
+6. **`TextRenderer` KHÔNG theo `Graphics.Transform`.** Nó vẽ qua GDI nên bỏ qua ma
+   trận biến đổi của GDI+. Dịch canvas bằng `TranslateTransform` rồi vẽ tiếp thì hình
+   khối chạy theo còn chữ đứng yên — vòng tròn ngày hôm nay trôi khỏi số "30", nền chip
+   trôi khỏi tên việc. Muốn vẽ lệch vị trí thì vẽ ra bitmap riêng rồi `DrawImageUnscaled`
+   vào đúng chỗ. Cùng lý do đó: **đừng vẽ chữ lên bitmap `32bppArgb`** — GDI ghi đè
+   alpha về 0 ở vùng glyph, nên ghép ảnh sau đó là nền chạy xuyên qua đúng chỗ có chữ.
+   Dùng `24bppRgb`.
 
 ## Cách kiểm tra giao diện
 

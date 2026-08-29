@@ -229,6 +229,62 @@ static class SelfTest
             try { Directory.Delete(dir, true); } catch { /* WAL con giu file thi bo qua */ }
         }
 
+        // ---------- wallpaper ----------
+
+        // Cover phai PHU KIN, khong duoc de vien: canh nao thieu lam chuan, phan thua
+        // tran deu hai ben. De nguoc lai (Math.Min) thi anh 16:9 tren man 16:10 ho hai
+        // vien den.
+        void Fit(string name, Size src, Size dst)
+        {
+            var r = Wallpaper.Cover(src, dst);
+            bool covers = r.Left <= 0 && r.Top <= 0
+                       && r.Right >= dst.Width && r.Bottom >= dst.Height;
+            float ar = (float)r.Width / r.Height, want = (float)src.Width / src.Height;
+            Ok($"cover {name}", covers && Math.Abs(ar - want) < 0.02f, $"{r} (ti le {ar:0.000} / {want:0.000})");
+        }
+
+        Fit("anh ngang len man 4K", new Size(1920, 1080), new Size(3840, 2160));
+        Fit("anh doc len man ngang", new Size(1080, 1920), new Size(2560, 1440));
+        Fit("anh vuong len 1440p", new Size(2000, 2000), new Size(2560, 1440));
+        Ok("cover khong chia 0 khi anh hong", Wallpaper.Cover(new Size(0, 0), new Size(800, 600)).Width == 800);
+
+        // Panel phai nam gon trong man va lech ve ben PHAI (icon desktop o ben trai)
+        foreach (var scr in new[] { new Size(3840, 2160), new Size(2560, 1440), new Size(1920, 1080) })
+        {
+            var p = Wallpaper.PanelRect(scr);
+            // phai nam tron trong man, va con it nhat 30% be ngang ben TRAI de trong
+            // cho icon desktop (Windows xep icon tu trai sang)
+            Ok($"panel nam gon trong man {scr.Width}x{scr.Height}",
+                p.Left >= scr.Width * 0.3 && p.Right <= scr.Width && p.Top >= 0 && p.Bottom <= scr.Height,
+                $"{p}, chua {p.Left * 100 / scr.Width}% be ngang ben trai");
+        }
+
+        // Ve ra bitmap phai ra hinh that. Bug kieu "quen doi g.Clear" hay "font khong
+        // nhan theo scale" deu cho ra anh mot mau — dem so mau rieng biet la bat duoc.
+        var rdir = Path.Combine(Path.GetTempPath(), "deskcal-render-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            var size = new Size(900, 620);
+            using var bmp = new Bitmap(size.Width, size.Height);
+            using (var rs = new Store(Path.Combine(rdir, "r.db")))
+            {
+                rs.Add(Row("Hop team", today, new TimeOnly(9, 0), "NONE"));
+                rs.Add(Row("Deadline", today.AddDays(2), new TimeOnly(17, 0), "NONE", tag: "deadline"));
+                using var g = Graphics.FromImage(bmp);
+                using var view = new CalendarView(rs) { Month = today };
+                view.Render(g, size, 2f);
+            }
+
+            var seen = new HashSet<int>();
+            for (int y = 0; y < size.Height; y += 7)
+                for (int x = 0; x < size.Width; x += 7)
+                    seen.Add(bmp.GetPixel(x, y).ToArgb());
+
+            Ok("ve lich ra bitmap ra hinh that, khong phai mot mau", seen.Count > 5, $"{seen.Count} mau");
+        }
+        catch (Exception e) { Ok("ve lich ra bitmap ra hinh that, khong phai mot mau", false, e.Message); }
+        finally { try { Directory.Delete(rdir, true); } catch { /* WAL con giu file thi bo qua */ } }
+
         // ---------- form ----------
         // layout viet tay, de nem exception nhat; kiem tra ctor ca hai che do
         try

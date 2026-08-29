@@ -26,6 +26,24 @@ static class Program
         if (args is ["--add", .. var rest] && rest.Length > 0)
             return AddFromCli(string.Join(' ', rest));
 
+        // Sinh anh nen ra file de xem thu, KHONG dat lam wallpaper. Giao dien phai nhin
+        // bang mat moi biet dung sai, ma khong ai muon phai doi wallpaper that de xem.
+        //   deskcal.exe --wallpaper-preview out.bmp 3840 2160
+        if (args is ["--wallpaper-preview", var pv, .. var dim])
+        {
+            try
+            {
+                var size = dim.Length >= 2 && int.TryParse(dim[0], out int w) && int.TryParse(dim[1], out int h)
+                    ? new Size(w, h)
+                    : Screen.PrimaryScreen?.Bounds.Size ?? new Size(1920, 1080);
+                using var store = new Store(Paths.Db);
+                Wallpaper.Preview(store, size, pv);
+                Log.Write($"--wallpaper-preview {size.Width}x{size.Height} -> {pv}");
+                return 0;
+            }
+            catch (Exception e) { Log.Write($"--wallpaper-preview loi: {e}"); return 1; }
+        }
+
         if (args.Contains("--test-toast"))
         {
             Toast.Register();

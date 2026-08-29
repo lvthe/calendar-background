@@ -43,7 +43,7 @@ public sealed class TrayApp : ApplicationContext
         if (_window is null || _window.IsDisposed)
         {
             _window = new MainWindow(_store);
-            _window.Changed += BuildMenu;
+            _window.Changed += () => { BuildMenu(); Wallpaper.Refresh(_store); };
         }
         return _window;
     }
@@ -102,6 +102,10 @@ public sealed class TrayApp : ApplicationContext
 
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(new ToolStripMenuItem("Thêm việc…", null, (_, _) => QuickAdd()));
+        _menu.Items.Add(new ToolStripMenuItem("Hiện lịch lên nền desktop", null, (_, _) => ToggleWallpaper())
+        {
+            Checked = Wallpaper.Enabled,
+        });
         _menu.Items.Add(new ToolStripMenuItem("Chạy cùng Windows", null, (_, _) => Autostart.Toggle())
         {
             Checked = Autostart.Enabled,
@@ -137,6 +141,7 @@ public sealed class TrayApp : ApplicationContext
             if (Control.ModifierKeys.HasFlag(Keys.Shift)) OpenCalendar(o.On);
             else _store.SetDone(o.Id, o.On, !o.Done);
             _window?.Reload();
+            Wallpaper.Refresh(_store);
         };
         return it;
     }
@@ -152,6 +157,12 @@ public sealed class TrayApp : ApplicationContext
                   $"{f.Result.At?.ToString("HH\\:mm") ?? "(ca ngay)"} {f.Result.Rrule} lead={f.Result.LeadMinutes}");
         _reminder.Scan();   // dat gio da qua thi bao ngay, khoi doi het phut
         _window?.Reload();
+    }
+
+    void ToggleWallpaper()
+    {
+        if (Wallpaper.Enabled) Wallpaper.Disable();
+        else Wallpaper.Enable(_store);
     }
 
     void OpenDataDir()
