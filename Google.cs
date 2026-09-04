@@ -338,3 +338,48 @@ public static class GoogleAuth
         };
     }
 }
+
+/// <summary>
+/// Goi REST cua Google Calendar. Co tinh khong keo Google.Apis.Calendar.v3 vao: API nay
+/// du don gian de goi thang bang HttpClient, ma thu vien do keo theo Newtonsoft.Json va
+/// vai MB nua vao mot exe dang gon.
+/// </summary>
+public static class GoogleApi
+{
+    const string Base = "https://www.googleapis.com/calendar/v3";
+    static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    /// <summary>Mot lich trong danh sach cua nguoi dung.</summary>
+    public sealed record Calendar(string Id, string Summary, bool Primary, string? TimeZone);
+
+    public static async Task<List<Calendar>> CalendarsAsync(CancellationToken ct = default)
+    {
+        var json = await GetAsync("/users/me/calendarList?minAccessRole=writer", ct);
+        var list = new List<Calendar>();
+        if (!json.RootElement.TryGetProperty("items", out var items)) return list;
+
+        foreach (var it in items.EnumerateArray())
+        {
+            list.Add(new Calendar(
+                it.GetProperty("id").GetString() ?? "",
+                it.TryGetProperty("summary", out var s) ? s.GetString() ?? "" : "",
+                it.TryGetProperty("primary", out var p) && p.GetBoolean(),
+                it.TryGetProperty("timeZone", out var tz) ? tz.GetString() : null));
+        }
+        return list;
+    }
+
+    static async Task<JsonDocument> GetAsync(string path, CancellationToken ct)
+    {
+        var token = await GoogleAccount.AccessTokenAsync(ct)
+            ?? throw new InvalidOperationException("Chưa kết nối Google, hoặc token đã hỏng.");
+
+        using var req = new HttpRequestMessage(HttpMethod.Get, Base + path);
+        req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        using var res = await Http.SendAsync(req, ct);
+        string body = await res.Content.ReadAsStringAsync(ct);
+        if (!res.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Calendar API loi {(int)res.StatusCode}: {body}");
+        return JsonDocument.Parse(body);
+    }
+}

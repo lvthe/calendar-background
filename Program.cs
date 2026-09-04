@@ -57,6 +57,20 @@ static class Program
             }
         }
 
+        // Goi thu API that: chung minh token dung duoc, scope du, va Calendar API da bat.
+        if (args.Contains("--google-test"))
+        {
+            try
+            {
+                var cals = GoogleApi.CalendarsAsync().GetAwaiter().GetResult();
+                Log.Write($"google: goi API duoc, thay {cals.Count} lich ghi duoc:");
+                foreach (var c in cals)
+                    Log.Write($"google:   {(c.Primary ? "*" : " ")} {c.Summary}  [{c.TimeZone}]  {c.Id}");
+                return 0;
+            }
+            catch (Exception e) { Log.Write($"google: goi API that bai: {e.Message}"); return 1; }
+        }
+
         if (args.Contains("--google-logout"))
         {
             GoogleAccount.Disconnect();
