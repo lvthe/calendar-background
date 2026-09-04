@@ -42,11 +42,10 @@ public sealed class Reminder
     {
         try
         {
-            // Tien the cap nhat wallpaper o day: luot quet nay da chay san 60s/lan tren
-            // UI thread, nen doi ngay / doi do phan giai / doi sang-toi deu bat duoc ma
-            // khong phai hook SystemEvents — hook do ban tren thread khac, keo theo phai
-            // dong bo truy cap SQLite.
-            Wallpaper.Refresh(_store);
+            // Luot quet nay da chay san 60s/lan tren UI thread, nen lop lich tren
+            // desktop bam vao day de bat doi ngay / doi do phan giai / doi sang-toi —
+            // khong phai hook SystemEvents, hook do ban tren thread khac va keo theo
+            // phai dong bo truy cap SQLite.
             Tick?.Invoke();
 
             var now = DateTime.Now;

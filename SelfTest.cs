@@ -233,35 +233,24 @@ static class SelfTest
             try { Directory.Delete(dir, true); } catch { /* WAL con giu file thi bo qua */ }
         }
 
-        // ---------- wallpaper ----------
+        // ---------- bo cuc lop lich tren desktop ----------
 
-        // Cover phai PHU KIN, khong duoc de vien: canh nao thieu lam chuan, phan thua
-        // tran deu hai ben. De nguoc lai (Math.Min) thi anh 16:9 tren man 16:10 ho hai
-        // vien den.
-        void Fit(string name, Size src, Size dst)
-        {
-            var r = Wallpaper.Cover(src, dst);
-            bool covers = r.Left <= 0 && r.Top <= 0
-                       && r.Right >= dst.Width && r.Bottom >= dst.Height;
-            float ar = (float)r.Width / r.Height, want = (float)src.Width / src.Height;
-            Ok($"cover {name}", covers && Math.Abs(ar - want) < 0.02f, $"{r} (ti le {ar:0.000} / {want:0.000})");
-        }
-
-        Fit("anh ngang len man 4K", new Size(1920, 1080), new Size(3840, 2160));
-        Fit("anh doc len man ngang", new Size(1080, 1920), new Size(2560, 1440));
-        Fit("anh vuong len 1440p", new Size(2000, 2000), new Size(2560, 1440));
-        Ok("cover khong chia 0 khi anh hong", Wallpaper.Cover(new Size(0, 0), new Size(800, 600)).Width == 800);
-
-        // Panel phai nam gon trong man va lech ve ben PHAI (icon desktop o ben trai)
+        // Panel phai nam gon trong man va lech ve ben PHAI (icon desktop o ben trai),
+        // o moi do phan giai — day la cai lam cho "tu bam theo man hinh" dung.
         foreach (var scr in new[] { new Size(3840, 2160), new Size(2560, 1440), new Size(1920, 1080) })
         {
-            var p = Wallpaper.PanelRect(scr);
-            // phai nam tron trong man, va con it nhat 30% be ngang ben TRAI de trong
-            // cho icon desktop (Windows xep icon tu trai sang)
+            var p = DesktopPanel.PanelRect(scr);
             Ok($"panel nam gon trong man {scr.Width}x{scr.Height}",
                 p.Left >= scr.Width * 0.3 && p.Right <= scr.Width && p.Top >= 0 && p.Bottom <= scr.Height,
                 $"{p}, chua {p.Left * 100 / scr.Width}% be ngang ben trai");
         }
+
+        // Cung mot bo cuc o moi man: ti le khung phai nhu nhau, chi khac do net.
+        var r4k = DesktopPanel.PanelRect(new Size(3840, 2160));
+        var r1440 = DesktopPanel.PanelRect(new Size(2560, 1440));
+        Ok("bo cuc panel giong nhau o 4K va 1440p",
+            Math.Abs((float)r4k.Width / r4k.Height - (float)r1440.Width / r1440.Height) < 0.01f,
+            $"{(float)r4k.Width / r4k.Height:0.000} vs {(float)r1440.Width / r1440.Height:0.000}");
 
         // Ve ra bitmap phai ra hinh that. Bug kieu "quen doi g.Clear" hay "font khong
         // nhan theo scale" deu cho ra anh mot mau — dem so mau rieng biet la bat duoc.
@@ -308,13 +297,19 @@ static class SelfTest
             Ok("lop mo co WS_EX_NOACTIVATE", (ex & WS_EX_NOACTIVATE) != 0, $"exstyle=0x{ex:X}");
             Ok("lop mo co WS_EX_TOOLWINDOW", (ex & WS_EX_TOOLWINDOW) != 0, $"exstyle=0x{ex:X}");
 
-            Ok("lop mo la trong suot", panel.Opacity is > 0.3 and < 1.0, panel.Opacity.ToString("0.00"));
+            Ok("lop mo la trong suot", panel.Opacity is > 0.0 and < 1.0, panel.Opacity.ToString("0.00"));
+            Ok("do mo cua so khop voi muc da luu",
+                Math.Abs(panel.Opacity - DesktopPanel.OpacityPercent / 100.0) < 0.001,
+                $"{panel.Opacity:0.00} vs {DesktopPanel.OpacityPercent}%");
+            Ok("moi muc do mo deu la gia tri dung duoc",
+                DesktopPanel.OpacityLevels.Length > 0 && DesktopPanel.OpacityLevels.All(v => v is >= 5 and <= 100),
+                string.Join(" ", DesktopPanel.OpacityLevels));
             Ok("lop mo khong hien tren taskbar", !panel.ShowInTaskbar);
             Ok("lop mo bo goc bang Region", panel.Region is not null);
 
             var scr = Screen.PrimaryScreen?.Bounds.Size ?? new Size(1920, 1080);
-            Ok("lop mo nam dung cho nhu ban wallpaper",
-                panel.Bounds == Wallpaper.PanelRect(scr), $"{panel.Bounds} vs {Wallpaper.PanelRect(scr)}");
+            Ok("lop mo nam dung o vi tri tinh ra",
+                panel.Bounds == DesktopPanel.PanelRect(scr), $"{panel.Bounds} vs {DesktopPanel.PanelRect(scr)}");
         }
         catch (Exception e) { Ok("dung duoc lop lich mo tren desktop", false, e.Message); }
         finally { try { Directory.Delete(pdir, true); } catch { /* WAL con giu file thi bo qua */ } }

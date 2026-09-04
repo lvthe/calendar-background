@@ -18,15 +18,14 @@ dotnet build
 dotnet publish -c Release -o dist
 ```
 
-Chạy test (62 test):
+Chạy test (61 test):
 
 ```
 bin\Debug\net10.0-windows10.0.19041.0\win-x64\deskcal.exe --self-test out.txt
 ```
 
 Các flag khác: `--open` (mở luôn cửa sổ lịch), `--add "Tiêu đề|mai|14:30|work|WEEKLY"`,
-`--test-toast`, `--wallpaper-preview out.bmp [rong cao]` (sinh ảnh nền ra file mà
-không đổi wallpaper thật — dùng để soi bố cục).
+`--test-toast`.
 
 ### Hai cái bẫy khi chạy lệnh
 
@@ -54,11 +53,10 @@ Clock.cs         mặt đồng hồ chọn giờ
 Theme.cs         bảng màu theo theme hệ thống, font, helper vẽ, MenuRenderer
 MainWindow.cs    cửa sổ lịch + header điều hướng
 EventForm.cs     form thêm/sửa việc
-Wallpaper.cs     ve lich ra anh, ghep len anh nen, dat lam wallpaper
 DesktopPanel.cs  cua so mo ghim day z-order, bam duoc
 TrayApp.cs       NotifyIcon + context menu
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
-SelfTest.cs      62 test
+SelfTest.cs      61 test
 ```
 
 Bốn bảng SQLite: `tasks` (việc gốc), `completions(task_id, occurs_on)` (xong theo từng

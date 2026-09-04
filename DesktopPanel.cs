@@ -4,9 +4,9 @@ using Microsoft.Win32;
 namespace Deskcal;
 
 /// <summary>
-/// Lop lich mo nam tren hinh nen, duoi moi cua so khac. Khac che do wallpaper o
-/// Wallpaper.cs: hinh nen that giu nguyen (Spotlight van tu doi anh moi ngay), va
-/// bam duoc — tick viec xong, mo form sua ngay tren desktop.
+/// Lop lich mo nam tren hinh nen, duoi moi cua so khac. Hinh nen that giu nguyen
+/// (Spotlight van tu doi anh moi ngay), va bam duoc — tick viec xong, mo form sua
+/// ngay tren desktop.
 ///
 /// Ba thu phai co, thieu cai nao la hong:
 ///  - WS_EX_NOACTIVATE: bam vao khong cuop focus cua app dang lam viec. Chuot van
@@ -25,12 +25,54 @@ public sealed class DesktopPanel : Form
     const uint SWP_NOZORDER = 0x0004;
     static readonly IntPtr HWND_BOTTOM = 1;
 
+    // ---- hinh hoc, doi o day neu muon bo cuc khac ----
+
     /// <summary>
-    /// Do mo. Khac ban wallpaper: o day Windows ghep ca cua so bang layered window nen
-    /// chu giu nguyen tuong phan so voi nen panel — khong dinh loi GDI xoa alpha o vung
-    /// glyph nhu khi tu ve len bitmap.
+    /// Panel chiem bao nhieu be ngang / chieu cao man hinh. Ti le 0.52/0.60 tren man
+    /// 16:9 cho ra khung ~1.54:1, gan bang cua so lich that (1404x918) — de hep hon thi
+    /// o ngay bi bop ngang va ten viec cut thanh "Hop t...".
     /// </summary>
-    const double PanelOpacity = 0.90;
+    const float PanelW = 0.52f, PanelH = 0.60f;
+
+    /// <summary>Cach mep phai; can giua theo chieu doc.</summary>
+    const float MarginRight = 0.04f;
+
+    /// <summary>Muc do mo cho chon trong menu khay, tinh theo % duc.</summary>
+    public static readonly int[] OpacityLevels = [15, 25, 40, 60, 80];
+
+    const int DefaultOpacity = 25;
+
+    /// <summary>
+    /// Do duc, %. Windows ghep ca cua so bang layered window nen chu giu nguyen tuong
+    /// phan so voi nen panel — khong dinh loi GDI xoa alpha o vung glyph nhu khi tu ve
+    /// chu len bitmap 32bppArgb.
+    /// </summary>
+    public static int OpacityPercent
+    {
+        get
+        {
+            using var k = Registry.CurrentUser.OpenSubKey(Key);
+            return k?.GetValue("PanelOpacity") is int v && v is >= 5 and <= 100 ? v : DefaultOpacity;
+        }
+        set
+        {
+            using var k = Registry.CurrentUser.CreateSubKey(Key);
+            k?.SetValue("PanelOpacity", Math.Clamp(value, 5, 100), RegistryValueKind.DWord);
+        }
+    }
+
+    /// <summary>
+    /// Panel nam ben PHAI: icon desktop mac dinh xep tu trai sang, de ben trai thi lich
+    /// nam duoi day icon.
+    /// </summary>
+    public static Rectangle PanelRect(Size screen)
+    {
+        int w = (int)(screen.Width * PanelW);
+        int h = (int)(screen.Height * PanelH);
+        int x = screen.Width - w - (int)(screen.Width * MarginRight);
+        int y = (screen.Height - h) / 2;
+        return new Rectangle(x, y, w, h);
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     struct WINDOWPOS
@@ -72,7 +114,7 @@ public sealed class DesktopPanel : Form
         StartPosition = FormStartPosition.Manual;
         AutoScaleMode = AutoScaleMode.None;
         BackColor = Theme.CellBg;
-        Opacity = PanelOpacity;
+        Opacity = OpacityPercent / 100.0;
         TopMost = false;
 
         Font = Theme.Font(10f);
@@ -126,14 +168,10 @@ public sealed class DesktopPanel : Form
 
     // ---------- bo cuc ----------
 
-    /// <summary>
-    /// Dung chung PanelRect voi che do wallpaper nen hai che do nam dung mot cho, va
-    /// hinh hoc do da co test.
-    /// </summary>
     void Layout_()
     {
         var screen = Screen.PrimaryScreen?.Bounds.Size ?? new Size(1920, 1080);
-        var r = Wallpaper.PanelRect(screen);
+        var r = PanelRect(screen);
         Bounds = r;
         _laidOutFor = screen;
 
@@ -158,6 +196,9 @@ public sealed class DesktopPanel : Form
         if (_view.Month.Year != today.Year || _view.Month.Month != today.Month) { _view.Month = today; Sync(); }
         else Reload();
     }
+
+    /// <summary>Ap lai do mo sau khi nguoi dung chon muc khac trong menu.</summary>
+    public void ApplyOpacity() => Opacity = OpacityPercent / 100.0;
 
     public void Reload()
     {

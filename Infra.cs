@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Win32;
 
 namespace Deskcal;
@@ -55,6 +56,48 @@ public static class Log
             }
         }
         catch { /* log that bai thi thoi, khong the lam gi hon */ }
+    }
+}
+
+/// <summary>
+/// Ban truoc tung co che do ve lich thang vao anh nen roi dat lam wallpaper. Da bo.
+/// Ai lo dang bat luc nang cap thi wallpaper cua ho van dang tro vao file app sinh ra,
+/// va khong con nut nao de tra lai — nen dong nay tu tra ho mot lan roi don sach.
+/// Xoa duoc sau vai ban.
+/// </summary>
+public static class LegacyWallpaper
+{
+    const string Key = @"Software\deskcal";
+    const int SPI_SETDESKWALLPAPER = 0x0014;
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    static extern bool SystemParametersInfoW(int action, int param, string? value, int winIni);
+
+    public static void Undo()
+    {
+        try
+        {
+            var generated = Path.Combine(Paths.Dir, "wallpaper.bmp");
+            using var k = Registry.CurrentUser.OpenSubKey(Key, writable: true);
+            if (k is null) return;
+
+            using (var d = Registry.CurrentUser.OpenSubKey(@"Control Panel\Desktop"))
+            {
+                var now = d?.GetValue("Wallpaper") as string ?? "";
+                // chi dung tay vao wallpaper khi no dung la file minh sinh ra
+                if (string.Equals(now, generated, StringComparison.OrdinalIgnoreCase)
+                    && k.GetValue("WallpaperBackup") is string old && File.Exists(old))
+                {
+                    SystemParametersInfoW(SPI_SETDESKWALLPAPER, 0, old, 0x03);
+                    Log.Write($"nen: bo che do wallpaper, tra lai {old}");
+                }
+            }
+
+            k.DeleteValue("WallpaperMode", false);
+            k.DeleteValue("WallpaperBackup", false);
+            if (File.Exists(generated)) File.Delete(generated);
+        }
+        catch (Exception e) { Log.Write($"nen: don che do wallpaper cu that bai: {e.Message}"); }
     }
 }
 

@@ -33,6 +33,7 @@ public sealed class TrayApp : ApplicationContext
         _reminder = new Reminder(_store);
         _reminder.Fired += () => _window?.Reload();
         _reminder.Tick += () => _panel?.Tick();
+        LegacyWallpaper.Undo();   // ban cu tung doi wallpaper that — tra lai neu con
         ApplyPanel();          // bat lai neu lan truoc dang bat
         _reminder.Start();
         Welcome();
@@ -46,7 +47,7 @@ public sealed class TrayApp : ApplicationContext
         if (_window is null || _window.IsDisposed)
         {
             _window = new MainWindow(_store);
-            _window.Changed += () => { BuildMenu(); Wallpaper.Refresh(_store); _panel?.Reload(); };
+            _window.Changed += () => { BuildMenu(); _panel?.Reload(); };
         }
         return _window;
     }
@@ -109,10 +110,7 @@ public sealed class TrayApp : ApplicationContext
         {
             Checked = DesktopPanel.Enabled,
         });
-        _menu.Items.Add(new ToolStripMenuItem("Vẽ lịch vào ảnh nền (đổi wallpaper)", null, (_, _) => ToggleWallpaper())
-        {
-            Checked = Wallpaper.Enabled,
-        });
+        _menu.Items.Add(OpacityMenu());
         _menu.Items.Add(new ToolStripMenuItem("Chạy cùng Windows", null, (_, _) => Autostart.Toggle())
         {
             Checked = Autostart.Enabled,
@@ -148,7 +146,6 @@ public sealed class TrayApp : ApplicationContext
             if (Control.ModifierKeys.HasFlag(Keys.Shift)) OpenCalendar(o.On);
             else _store.SetDone(o.Id, o.On, !o.Done);
             _window?.Reload();
-            Wallpaper.Refresh(_store);
             _panel?.Reload();
         };
         return it;
@@ -167,10 +164,23 @@ public sealed class TrayApp : ApplicationContext
         _window?.Reload();
     }
 
-    void ToggleWallpaper()
+    /// <summary>Chon do mo ngay tren menu — de doi thu roi nhin, khong phai sua code.</summary>
+    ToolStripMenuItem OpacityMenu()
     {
-        if (Wallpaper.Enabled) Wallpaper.Disable();
-        else Wallpaper.Enable(_store);
+        int cur = DesktopPanel.OpacityPercent;
+        var m = new ToolStripMenuItem($"Độ mờ ({cur}%)") { Enabled = DesktopPanel.Enabled };
+        foreach (int lv in DesktopPanel.OpacityLevels)
+        {
+            int pick = lv;
+            m.DropDownItems.Add(new ToolStripMenuItem($"{lv}%", null, (_, _) =>
+            {
+                DesktopPanel.OpacityPercent = pick;
+                _panel?.ApplyOpacity();
+                Log.Write($"nen: do mo = {pick}%");
+            })
+            { Checked = lv == cur });
+        }
+        return m;
     }
 
     void TogglePanel()

@@ -94,7 +94,7 @@ Toast sẽ bắn sớm hơn giờ việc đúng bằng khoảng đó.
 
 Click phải icon: danh sách **Quá hạn** / **Hôm nay** / **Sắp tới**, click một việc để
 tick xong ngay, Shift+click để nhảy sang lịch ngày đó. Kèm **Mở lịch**, **Thêm việc…**,
-**Lớp lịch mờ trên desktop**, **Vẽ lịch vào ảnh nền**, **Chạy cùng Windows**, **Mở thư mục dữ liệu**, **Thoát**.
+**Lớp lịch mờ trên desktop**, **Độ mờ**, **Chạy cùng Windows**, **Mở thư mục dữ liệu**, **Thoát**.
 
 ### Không thấy icon dưới khay?
 
@@ -119,21 +119,31 @@ Trỏ vào `dist\deskcal.exe`, đừng trỏ vào `bin\Debug\...`, vì `dotnet b
 file trong `bin` lúc bạn build lại. Chỉ ghi HKCU nên không cần admin, và không hiện
 cửa sổ console — app là WinExe.
 
-## Lịch trên desktop
+## Lớp lịch mờ trên desktop
 
-Có **hai chế độ**, bật độc lập ở menu khay. Khác nhau ở chỗ có đụng vào wallpaper không.
-
-### 1. Lớp lịch mờ trên desktop (khuyên dùng)
-
-Menu khay → **Lớp lịch mờ trên desktop**. Một cửa sổ không viền, mờ 90%, bo góc, nằm
+Menu khay → **Lớp lịch mờ trên desktop**. Một cửa sổ không viền, trong suốt, bo góc, nằm
 ngay trên hình nền và **dưới mọi cửa sổ khác**.
 
-- **Không đụng vào wallpaper.** Spotlight vẫn tự đổi ảnh mỗi ngày như thường.
-- **Bấm được.** Tick việc xong, click vào ô ngày để thêm, click vào việc để sửa — ngay
-  trên desktop, không phải mở cửa sổ lịch.
-- Tự bám theo độ phân giải và tự nhảy sang tháng mới, kiểm mỗi lượt quét 60s.
+- **Không đụng vào wallpaper.** Ảnh nền Windows giữ nguyên; Spotlight vẫn tự đổi ảnh mỗi
+  ngày như thường.
+- **Bấm được.** Tick việc xong, click ô ngày để thêm, click việc để sửa — ngay trên
+  desktop, không phải mở cửa sổ lịch.
+- **Tự bám theo màn hình.** Đọc `Screen.PrimaryScreen` mỗi lượt quét 60s, nên đổi độ phân
+  giải, cắm màn ngoài, hay mang sang máy khác (4K ↔ 1440p) là tự xếp lại. Tỉ lệ khung giữ
+  nguyên ở mọi màn (~1.54:1), chỉ khác độ nét.
+- **Nằm bên phải**, chừa 44% bề ngang bên trái cho icon desktop.
 
-Ba cờ giữ cho nó cư xử đúng, thiếu cái nào là hỏng:
+### Độ mờ
+
+Menu khay → **Độ mờ**: 15 / 25 / 40 / 60 / 80%. Mặc định **25%**.
+
+Càng trong càng dịu mắt nhưng càng khó đọc, và mức đọc được phụ thuộc ảnh nền: trên vùng
+tối thì 25% vẫn rõ, trên vùng sáng (đèn, mây trắng) thì phải 40–60%. Đổi mức là thấy ngay,
+không cần khởi động lại.
+
+### Ba cờ cửa sổ
+
+Thiếu cái nào là hỏng, nên cả ba đều có test:
 
 | Cờ | Không có thì |
 |---|---|
@@ -141,34 +151,12 @@ Ba cờ giữ cho nó cư xử đúng, thiếu cái nào là hỏng:
 | `WS_EX_TOOLWINDOW` | Chiếm một ô trong Alt+Tab |
 | Chặn `WM_WINDOWPOSCHANGING` ép `HWND_BOTTOM` | Bấm một cái là nó nhảy lên trước mọi cửa sổ |
 
-Đã đo: panel nằm ở vị trí áp chót trong z-order, chỉ có `Progman` (chính desktop) ở dưới.
+Đã đo bằng `EnumWindows`: panel nằm áp chót trong z-order, chỉ còn `Progman` (chính
+desktop) ở dưới.
 
-### 2. Vẽ lịch vào ảnh nền (đổi wallpaper)
-
-Menu khay → **Vẽ lịch vào ảnh nền**. App vẽ lịch tháng thành một panel, ghép
-lên chính ảnh nền bạn đang dùng, rồi đặt kết quả làm wallpaper.
-
-- **Tự bám theo màn hình.** Kích thước lấy từ `Screen.PrimaryScreen` mỗi lượt quét 60s,
-  nên đổi độ phân giải, cắm màn ngoài, hay mang sang máy khác (4K ↔ 1440p) là tự vẽ lại.
-  Chiều cao **logic** cố định 900px rồi mới suy ra tỉ lệ phóng, nhờ vậy mọi màn hình ra
-  cùng một bố cục, chỉ khác độ nét.
-- **Panel nằm bên phải**, chừa 44% bề ngang bên trái cho icon desktop.
-- Vẽ lại khi: đổi ngày, sửa/thêm/tick việc, đổi theme sáng-tối, đổi độ phân giải.
-- **Tắt là trả lại ảnh nền cũ.** Đường dẫn ảnh gốc lưu ở `HKCU\Software\deskcal`.
-
-Hai điều cần biết trước khi bật:
-
-- Ảnh nền hiện tại của bạn nếu là **Windows Spotlight** thì sẽ **ngừng tự đổi ảnh mỗi
-  ngày**, vì wallpaper giờ là file tĩnh do app sinh ra. Tắt đi là Spotlight chạy lại.
-- Panel vẽ **đục**, không trong suốt. Đã thử để trong: vùng sáng trên ảnh nền (đèn thành
-  phố, mây trắng) xuyên lên làm chữ gần như không đọc được.
-
-Không bấm được vào lịch trên nền — nó là ảnh. Chế độ 1 ở trên bấm được, nên nếu bạn muốn
-tương tác thì dùng chế độ đó.
-
-Cả hai đều không dùng `WorkerW` kiểu Lively / Wallpaper Engine: cách đó không bấm được
-(bị lớp icon chắn), lại là hack dựa vào nội bộ Explorer nên vỡ mỗi lần Explorer restart
-hoặc Windows update.
+Không dùng `WorkerW` kiểu Lively / Wallpaper Engine: cách đó không bấm được (bị lớp icon
+chắn), lại là hack dựa vào nội bộ Explorer nên vỡ mỗi lần Explorer restart hoặc Windows
+update.
 
 ## Nhắc việc hoạt động thế nào
 
@@ -206,9 +194,8 @@ admin) để toast hiện tên "deskcal". Nếu WinRT lỗi hẳn thì tự đ�
 | `deskcal.exe` | Chạy nền, chỉ hiện icon khay |
 | `deskcal.exe --open` | Chạy nền và mở luôn cửa sổ lịch |
 | `deskcal.exe --add "Họp team\|mai\|14:30\|work\|WEEKLY"` | Thêm việc rồi thoát |
-| `deskcal.exe --wallpaper-preview out.bmp [rộng cao]` | Sinh ảnh nền ra file, **không** đổi wallpaper thật |
 | `deskcal.exe --test-toast` | Bắn một toast thử |
-| `deskcal.exe --self-test out.txt` | Chạy 62 test, ghi kết quả ra file |
+| `deskcal.exe --self-test out.txt` | Chạy 61 test, ghi kết quả ra file |
 
 `--add` chỉ bắt buộc phần tiêu đề, các phần sau có mặc định. Nối lại hết phần sau `--add`
 nên quên bọc nháy cũng không mất chữ. Tiện để gắn hotkey hoặc gọi từ script.
@@ -291,7 +278,6 @@ Program.cs       entry, single-instance mutex, cac flag dong lenh
 Store.cs         SQLite + lịch lặp + điều kiện nhắc, tự migrate thêm cột
 Parse.cs         đọc ngày/giờ người dùng gõ tay
 Reminder.cs      timer 60s, dedupe, bắn bù, rate-limit, nhắc trước
-Wallpaper.cs     vẽ lịch ra ảnh, ghép lên ảnh nền, đặt làm wallpaper
 DesktopPanel.cs  cửa sổ mờ ghim đáy z-order, bấm được
 Toast.cs         toast native qua Windows.UI.Notifications, đăng ký AUMID
 CalendarView.cs  lưới lịch tháng vẽ tay, hit-test
@@ -302,7 +288,7 @@ EventForm.cs     form thêm/sửa việc
 TrayApp.cs       NotifyIcon + context menu
 Theme.cs         màu theo theme hệ thống, font, MenuRenderer
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
-SelfTest.cs      62 test
+SelfTest.cs      61 test
 ```
 
 Bốn bảng: `tasks` (việc gốc), `completions(task_id, occurs_on)` (tick xong theo từng lần
@@ -319,9 +305,9 @@ App là WinExe nên không có stdout — kết quả ghi ra file, exit code 0 l
 Lưu ý PowerShell **không chờ** WinExe, phải dùng `Start-Process -Wait` nếu muốn đọc
 file ngay sau đó.
 
-62 test, phủ lịch lặp, điều kiện nhắc, nhắc-trước, parser ngày/giờ, ctor hai form,
-layout ô ghi chú, phép ghép ảnh nền, và cờ
-cửa sổ của lớp mờ.
+61 test, phủ lịch lặp, điều kiện nhắc, nhắc-trước, parser ngày/giờ, ctor hai form,
+layout ô ghi chú, và bố cục
+cùng cờ cửa sổ của lớp mờ.
 
 ## So với bản Node cũ
 
