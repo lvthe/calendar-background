@@ -334,6 +334,23 @@ static class SelfTest
         Ok("auth url khong xin scope calendar day du",
             !au.Contains(Uri.EscapeDataString("auth/calendar ")) && !au.EndsWith("auth/calendar"));
 
+        // Nhan file Google cho tai ve nguyen xi — bat nguoi dung sua tay la co cho sai.
+        var native = GoogleConfig.Parse(
+            """{"installed":{"client_id":"abc.apps.googleusercontent.com","client_secret":"GOCSPX-x","redirect_uris":["http://localhost"]}}""");
+        Ok("doc duoc file Google cho tai ve nguyen xi",
+            native is { ClientId: "abc.apps.googleusercontent.com", ClientSecret: "GOCSPX-x" });
+
+        Ok("doc duoc ca dang phang go tay",
+            GoogleConfig.Parse("""{"clientId":"a","clientSecret":"b"}""") is { ClientId: "a", ClientSecret: "b" });
+
+        // Tao nham client loai Web thi luong loopback se bi Google tu choi. Bat o day
+        // chu de chet luc dang nhap thi rat kho doan la do sai loai client.
+        Ok("tu choi client loai Web va noi ro",
+            GoogleConfig.Parse("""{"web":{"client_id":"a","client_secret":"b"}}""") is null);
+
+        Ok("thieu truong thi tra null chu khong nem",
+            GoogleConfig.Parse("""{"installed":{"client_id":"a"}}""") is null);
+
         Ok("token sap het han thi coi la can lam moi",
             new GoogleToken { ExpiresAt = DateTime.UtcNow.AddMinutes(1) }.Stale
             && !new GoogleToken { ExpiresAt = DateTime.UtcNow.AddMinutes(30) }.Stale);

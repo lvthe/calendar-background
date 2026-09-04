@@ -26,6 +26,21 @@ static class Program
         if (args is ["--add", .. var rest] && rest.Length > 0)
             return AddFromCli(string.Join(' ', rest));
 
+        // Xem app doc duoc google.json chua. Chi in 12 ky tu dau cua client_id va do dai
+        // secret — du de biet doc dung file, khong du de lo bi mat vao file log.
+        if (args.Contains("--google-status"))
+        {
+            var cfg = GoogleConfig.Load();
+            Log.Write(cfg is null
+                ? $"google: CHUA doc duoc cau hinh tu {GoogleConfig.Path_}"
+                : $"google: doc duoc cau hinh, client_id={cfg.ClientId[..12]}… secret {cfg.ClientSecret.Length} ky tu");
+            var tok = GoogleToken.Load();
+            Log.Write(tok is null
+                ? "google: chua dang nhap (khong co token)"
+                : $"google: da co token, het han {tok.ExpiresAt:yyyy-MM-dd HH:mm} UTC, stale={tok.Stale}");
+            return cfg is null ? 1 : 0;
+        }
+
         if (args.Contains("--test-toast"))
         {
             Toast.Register();

@@ -24,12 +24,45 @@ public sealed record GoogleConfig(string ClientId, string ClientSecret)
         try
         {
             if (!File.Exists(Path_)) return null;
-            var c = JsonSerializer.Deserialize<GoogleConfig>(File.ReadAllText(Path_),
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            return c is { ClientId.Length: > 0, ClientSecret.Length: > 0 } ? c : null;
+            return Parse(File.ReadAllText(Path_));
         }
         catch (Exception e) { Log.Write($"google: doc google.json loi: {e.Message}"); return null; }
     }
+
+    /// <summary>
+    /// Nhan ca hai dang: file Google cho tai ve nguyen xi ({"installed":{...}}) va dang
+    /// phang tu go tay ({"clientId":...}). Nhan luon dang nguyen xi de nguoi dung khoi
+    /// phai sua tay — sua tay la co cho sai.
+    /// </summary>
+    public static GoogleConfig? Parse(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+
+        // {"web":{...}} la client loai Web application — sai loai, luong loopback se bi
+        // Google tu choi. Bao ro o day chu de no chet luc dang nhap thi rat kho doan.
+        if (root.TryGetProperty("web", out _))
+        {
+            Log.Write("google: google.json la client loai 'Web application'. " +
+                      "Phai tao lai loai 'Desktop app'.");
+            return null;
+        }
+
+        var src = root.TryGetProperty("installed", out var ins) ? ins : root;
+
+        string? id = Str(src, "client_id") ?? Str(src, "clientId");
+        string? secret = Str(src, "client_secret") ?? Str(src, "clientSecret");
+        if (id is not { Length: > 0 } || secret is not { Length: > 0 })
+        {
+            Log.Write("google: google.json thieu client_id hoac client_secret.");
+            return null;
+        }
+        return new GoogleConfig(id, secret);
+    }
+
+    static string? Str(JsonElement e, string name) =>
+        e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v)
+        && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
 }
 
 /// <summary>Token da lay ve. Luu canh DB, chi nguoi dung hien tai doc duoc.</summary>

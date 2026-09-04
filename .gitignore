@@ -12,8 +12,11 @@ data/
 *.log
 
 # Bi mat OAuth cua Google — KHONG bao gio dua len repo.
+# client_secret_*.json la ten Google dat san cho file tai ve; trinh duyet hay tha thang
+# vao thu muc project, nen phai chan ca pattern do chu khong chi ten minh tu dat.
 google.json
 google-token.json
+client_secret_*.json
 
 # IDE / OS
 .vs/
