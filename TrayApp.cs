@@ -7,6 +7,7 @@ public sealed class TrayApp : ApplicationContext
     readonly NotifyIcon _icon;
     readonly ContextMenuStrip _menu = new();
     MainWindow? _window;
+    DesktopPanel? _panel;
 
     public TrayApp(Store store, bool openCalendar = false)
     {
@@ -31,6 +32,8 @@ public sealed class TrayApp : ApplicationContext
 
         _reminder = new Reminder(_store);
         _reminder.Fired += () => _window?.Reload();
+        _reminder.Tick += () => _panel?.Tick();
+        ApplyPanel();          // bat lai neu lan truoc dang bat
         _reminder.Start();
         Welcome();
         if (openCalendar) OpenCalendar();
@@ -43,7 +46,7 @@ public sealed class TrayApp : ApplicationContext
         if (_window is null || _window.IsDisposed)
         {
             _window = new MainWindow(_store);
-            _window.Changed += () => { BuildMenu(); Wallpaper.Refresh(_store); };
+            _window.Changed += () => { BuildMenu(); Wallpaper.Refresh(_store); _panel?.Reload(); };
         }
         return _window;
     }
@@ -102,7 +105,11 @@ public sealed class TrayApp : ApplicationContext
 
         _menu.Items.Add(new ToolStripSeparator());
         _menu.Items.Add(new ToolStripMenuItem("Thêm việc…", null, (_, _) => QuickAdd()));
-        _menu.Items.Add(new ToolStripMenuItem("Hiện lịch lên nền desktop", null, (_, _) => ToggleWallpaper())
+        _menu.Items.Add(new ToolStripMenuItem("Lớp lịch mờ trên desktop", null, (_, _) => TogglePanel())
+        {
+            Checked = DesktopPanel.Enabled,
+        });
+        _menu.Items.Add(new ToolStripMenuItem("Vẽ lịch vào ảnh nền (đổi wallpaper)", null, (_, _) => ToggleWallpaper())
         {
             Checked = Wallpaper.Enabled,
         });
@@ -142,6 +149,7 @@ public sealed class TrayApp : ApplicationContext
             else _store.SetDone(o.Id, o.On, !o.Done);
             _window?.Reload();
             Wallpaper.Refresh(_store);
+            _panel?.Reload();
         };
         return it;
     }
@@ -163,6 +171,34 @@ public sealed class TrayApp : ApplicationContext
     {
         if (Wallpaper.Enabled) Wallpaper.Disable();
         else Wallpaper.Enable(_store);
+    }
+
+    void TogglePanel()
+    {
+        DesktopPanel.Enabled = !DesktopPanel.Enabled;
+        ApplyPanel();
+        Log.Write("nen: lop mo " + (DesktopPanel.Enabled ? "bat" : "tat"));
+    }
+
+    /// <summary>Dung trang thai cua so cho khop voi co da luu.</summary>
+    void ApplyPanel()
+    {
+        if (DesktopPanel.Enabled)
+        {
+            if (_panel is null || _panel.IsDisposed)
+            {
+                _panel = new DesktopPanel(_store);
+                _panel.Changed += () => { BuildMenu(); _window?.Reload(); };
+            }
+            _panel.Reload();
+            if (!_panel.Visible) _panel.Show();
+        }
+        else if (_panel is not null && !_panel.IsDisposed)
+        {
+            _panel.Close();
+            _panel.Dispose();
+            _panel = null;
+        }
     }
 
     void OpenDataDir()
@@ -197,6 +233,7 @@ public sealed class TrayApp : ApplicationContext
             _window.AllowClose = true;
             _window.Close();
         }
+        if (_panel is not null && !_panel.IsDisposed) { _panel.Close(); _panel.Dispose(); }
         _icon.Visible = false;
         _icon.Dispose();
         _store.Dispose();

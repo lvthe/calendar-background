@@ -18,6 +18,12 @@ public sealed class Reminder
     /// <summary>Ban khi vua ban toast, de tray cap nhat lai menu.</summary>
     public event Action? Fired;
 
+    /// <summary>
+    /// Ban moi luot quet, ke ca khi khong co viec nao den han. Cho lop lich mo tren
+    /// desktop bam vao de doi bo cuc theo do phan giai va sang ngay moi.
+    /// </summary>
+    public event Action? Tick;
+
     public Reminder(Store store)
     {
         _store = store;
@@ -41,6 +47,7 @@ public sealed class Reminder
             // khong phai hook SystemEvents — hook do ban tren thread khac, keo theo phai
             // dong bo truy cap SQLite.
             Wallpaper.Refresh(_store);
+            Tick?.Invoke();
 
             var now = DateTime.Now;
             var due = _store.DueNow(now, AllDayAt, GraceHours);

@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Deskcal;
@@ -11,6 +12,9 @@ static class SelfTest
     static TaskRow Row(string title, DateOnly date, TimeOnly? at, string rrule,
                        int lead = 0, TimeOnly? end = null, string tag = "work") =>
         new(0, title, date, at, end, tag, rrule, lead, null, null);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
 
     /// <summary>Cac o nhap nhieu dong trong cay control — de do chieu cao that sau layout.</summary>
     static IEnumerable<Field> Multiline(Control root)
@@ -284,6 +288,36 @@ static class SelfTest
         }
         catch (Exception e) { Ok("ve lich ra bitmap ra hinh that, khong phai mot mau", false, e.Message); }
         finally { try { Directory.Delete(rdir, true); } catch { /* WAL con giu file thi bo qua */ } }
+
+        // ---------- lop lich mo tren desktop ----------
+
+        var pdir = Path.Combine(Path.GetTempPath(), "deskcal-panel-" + Guid.NewGuid().ToString("N")[..8]);
+        try
+        {
+            using var ps = new Store(Path.Combine(pdir, "p.db"));
+            using var panel = new DesktopPanel(ps);
+            panel.CreateControl();
+
+            const int GWL_EXSTYLE = -20;
+            const int WS_EX_TOOLWINDOW = 0x00000080;
+            const int WS_EX_NOACTIVATE = 0x08000000;
+            long ex = GetWindowLongPtr(panel.Handle, GWL_EXSTYLE).ToInt64();
+
+            // NOACTIVATE: bam vao khong cuop focus cua app dang go.
+            // TOOLWINDOW: khong chiem mot o trong Alt+Tab.
+            Ok("lop mo co WS_EX_NOACTIVATE", (ex & WS_EX_NOACTIVATE) != 0, $"exstyle=0x{ex:X}");
+            Ok("lop mo co WS_EX_TOOLWINDOW", (ex & WS_EX_TOOLWINDOW) != 0, $"exstyle=0x{ex:X}");
+
+            Ok("lop mo la trong suot", panel.Opacity is > 0.3 and < 1.0, panel.Opacity.ToString("0.00"));
+            Ok("lop mo khong hien tren taskbar", !panel.ShowInTaskbar);
+            Ok("lop mo bo goc bang Region", panel.Region is not null);
+
+            var scr = Screen.PrimaryScreen?.Bounds.Size ?? new Size(1920, 1080);
+            Ok("lop mo nam dung cho nhu ban wallpaper",
+                panel.Bounds == Wallpaper.PanelRect(scr), $"{panel.Bounds} vs {Wallpaper.PanelRect(scr)}");
+        }
+        catch (Exception e) { Ok("dung duoc lop lich mo tren desktop", false, e.Message); }
+        finally { try { Directory.Delete(pdir, true); } catch { /* WAL con giu file thi bo qua */ } }
 
         // ---------- form ----------
         // layout viet tay, de nem exception nhat; kiem tra ctor ca hai che do

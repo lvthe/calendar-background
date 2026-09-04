@@ -18,7 +18,7 @@ dotnet build
 dotnet publish -c Release -o dist
 ```
 
-Chạy test (56 test):
+Chạy test (62 test):
 
 ```
 bin\Debug\net10.0-windows10.0.19041.0\win-x64\deskcal.exe --self-test out.txt
@@ -55,9 +55,10 @@ Theme.cs         bảng màu theo theme hệ thống, font, helper vẽ, MenuRen
 MainWindow.cs    cửa sổ lịch + header điều hướng
 EventForm.cs     form thêm/sửa việc
 Wallpaper.cs     ve lich ra anh, ghep len anh nen, dat lam wallpaper
+DesktopPanel.cs  cua so mo ghim day z-order, bam duoc
 TrayApp.cs       NotifyIcon + context menu
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
-SelfTest.cs      56 test
+SelfTest.cs      62 test
 ```
 
 Bốn bảng SQLite: `tasks` (việc gốc), `completions(task_id, occurs_on)` (xong theo từng
