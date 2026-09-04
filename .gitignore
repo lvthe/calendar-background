@@ -11,6 +11,10 @@ data/
 *.db-wal
 *.log
 
+# Bi mat OAuth cua Google — KHONG bao gio dua len repo.
+google.json
+google-token.json
+
 # IDE / OS
 .vs/
 .idea/

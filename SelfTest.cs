@@ -308,6 +308,36 @@ static class SelfTest
             try { Directory.Delete(dir, true); } catch { /* WAL con giu file thi bo qua */ }
         }
 
+        // ---------- OAuth Google ----------
+
+        // Test vector cua RFC 7636 phu luc B. Sai PKCE thi Google tu choi voi thong bao
+        // chung chung, rat kho lan ra — nen chot bang vector chuan.
+        const string rfcVerifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk";
+        const string rfcChallenge = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM";
+        Ok("PKCE challenge khop test vector RFC 7636",
+            GoogleAuth.Challenge(rfcVerifier) == rfcChallenge, GoogleAuth.Challenge(rfcVerifier));
+
+        var verifier = GoogleAuth.NewVerifier();
+        Ok("verifier dai trong khoang RFC cho phep", verifier.Length is >= 43 and <= 128, $"{verifier.Length} ky tu");
+        Ok("base64url khong con padding hay ky tu can escape",
+            !verifier.Contains('=') && !verifier.Contains('+') && !verifier.Contains('/'), verifier);
+
+        var au = GoogleAuth.AuthUrl("cid.apps.googleusercontent.com", "http://127.0.0.1:5000/",
+                                    GoogleAuth.Challenge(verifier), "st4te");
+        // Thieu access_type=offline hoac prompt=consent thi Google khong tra refresh_token,
+        // va app chet sau dung mot tieng ma khong hieu tai sao.
+        Ok("auth url xin refresh token", au.Contains("access_type=offline") && au.Contains("prompt=consent"));
+        Ok("auth url dung PKCE S256", au.Contains("code_challenge_method=S256") && au.Contains("code_challenge="));
+        Ok("auth url co state chong CSRF", au.Contains("state=st4te"));
+        Ok("auth url xin dung hai scope can thiet",
+            au.Contains(Uri.EscapeDataString("calendar.events")) && au.Contains(Uri.EscapeDataString("calendar.readonly")));
+        Ok("auth url khong xin scope calendar day du",
+            !au.Contains(Uri.EscapeDataString("auth/calendar ")) && !au.EndsWith("auth/calendar"));
+
+        Ok("token sap het han thi coi la can lam moi",
+            new GoogleToken { ExpiresAt = DateTime.UtcNow.AddMinutes(1) }.Stale
+            && !new GoogleToken { ExpiresAt = DateTime.UtcNow.AddMinutes(30) }.Stale);
+
         // ---------- bo cuc lop lich tren desktop ----------
 
         // Panel phai nam gon trong man va lech ve ben PHAI (icon desktop o ben trai),

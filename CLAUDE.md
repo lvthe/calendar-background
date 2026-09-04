@@ -6,7 +6,10 @@ Hướng dẫn cho Claude Code khi làm việc trong repo này. Đọc trước 
 
 `deskcal` — tray app C# / WinForms trên Windows. Chạy nền dưới khay hệ thống, có cửa
 sổ lịch tháng để nhập/sửa việc, và bắn toast notification native khi việc đến giờ.
-Không server, không browser, không localhost. Dữ liệu trong SQLite ở
+Không server, không browser, không localhost — **trừ đúng một ngoại lệ**: lúc đăng nhập
+Google, app mở trình duyệt và dựng một `HttpListener` trên `127.0.0.1` vài giây để nhận
+mã OAuth. Google không cho cách nào khác với tài khoản cá nhân. Đừng nới ngoại lệ này ra
+chỗ khác. Dữ liệu trong SQLite ở
 `%LOCALAPPDATA%\deskcal\deskcal.db`.
 
 Chi tiết tính năng và quyết định thiết kế: xem [README.md](README.md).
@@ -18,7 +21,7 @@ dotnet build
 dotnet publish -c Release -o dist
 ```
 
-Chạy test (74 test):
+Chạy test (83 test):
 
 ```
 bin\Debug\net10.0-windows10.0.19041.0\win-x64\deskcal.exe --self-test out.txt
@@ -55,8 +58,9 @@ MainWindow.cs    cửa sổ lịch + header điều hướng
 EventForm.cs     form thêm/sửa việc
 DesktopPanel.cs  cua so mo ghim day z-order, bam duoc
 TrayApp.cs       NotifyIcon + context menu
+Google.cs        OAuth loopback + PKCE, lưu/làm mới token
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
-SelfTest.cs      74 test
+SelfTest.cs      83 test
 ```
 
 Năm bảng SQLite: `tasks` (việc gốc), `completions(task_id, occurs_on)` (xong theo từng
