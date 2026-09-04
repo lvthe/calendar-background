@@ -41,6 +41,28 @@ static class Program
             return cfg is null ? 1 : 0;
         }
 
+        // Chay thang luong dang nhap tu dong lenh — mo trinh duyet, doi dong y, luu
+        // token. Tien ich rieng cho luc dung va go loi; dung thuong ngay thi bam menu khay.
+        if (args.Contains("--google-login"))
+        {
+            try
+            {
+                GoogleAccount.ConnectAsync().GetAwaiter().GetResult();
+                return 0;
+            }
+            catch (Exception e)
+            {
+                Log.Write($"google: dang nhap that bai: {e.Message}");
+                return 1;
+            }
+        }
+
+        if (args.Contains("--google-logout"))
+        {
+            GoogleAccount.Disconnect();
+            return 0;
+        }
+
         if (args.Contains("--test-toast"))
         {
             Toast.Register();

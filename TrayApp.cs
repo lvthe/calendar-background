@@ -111,6 +111,7 @@ public sealed class TrayApp : ApplicationContext
             Checked = DesktopPanel.Enabled,
         });
         _menu.Items.Add(OpacityMenu());
+        _menu.Items.Add(GoogleItem());
         _menu.Items.Add(new ToolStripMenuItem("Chạy cùng Windows", null, (_, _) => Autostart.Toggle())
         {
             Checked = Autostart.Enabled,
@@ -181,6 +182,34 @@ public sealed class TrayApp : ApplicationContext
             { Checked = lv == cur });
         }
         return m;
+    }
+
+    /// <summary>Noi / ngat Google. Chua co google.json thi hien mo va noi ro thieu gi.</summary>
+    ToolStripMenuItem GoogleItem()
+    {
+        if (!GoogleAccount.Configured)
+            return new ToolStripMenuItem("Google: chưa có google.json") { Enabled = false };
+
+        bool on = GoogleAccount.Connected;
+        var it = new ToolStripMenuItem(on ? "Ngắt kết nối Google" : "Kết nối Google…") { Checked = on };
+        it.Click += async (_, _) =>
+        {
+            if (on) { GoogleAccount.Disconnect(); return; }
+            try
+            {
+                _icon.ShowBalloonTip(5000, "deskcal",
+                    "Đang mở trình duyệt để đăng nhập Google…", ToolTipIcon.Info);
+                await GoogleAccount.ConnectAsync();
+                _icon.ShowBalloonTip(5000, "deskcal", "Đã kết nối Google.", ToolTipIcon.Info);
+            }
+            catch (Exception e)
+            {
+                Log.Write($"google: dang nhap that bai: {e}");
+                _icon.ShowBalloonTip(8000, "deskcal — không đăng nhập được",
+                    e.Message, ToolTipIcon.Error);
+            }
+        };
+        return it;
     }
 
     void TogglePanel()

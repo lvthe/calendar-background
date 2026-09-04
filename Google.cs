@@ -105,6 +105,60 @@ public sealed class GoogleToken
 }
 
 /// <summary>
+/// Tai khoan Google dang noi. Cho phan con lai cua app chi can hai thu: da noi chua, va
+/// cho toi mot access token con han. Chuyen refresh giau o trong.
+/// </summary>
+public static class GoogleAccount
+{
+    public static bool Configured => GoogleConfig.Load() is not null;
+    public static bool Connected => GoogleToken.Load() is { RefreshToken.Length: > 0 };
+
+    public static async Task ConnectAsync(CancellationToken ct = default)
+    {
+        var cfg = GoogleConfig.Load()
+            ?? throw new InvalidOperationException(
+                $"Chưa có cấu hình OAuth. Tạo file {GoogleConfig.Path_} trước.");
+        var tok = await GoogleAuth.SignInAsync(cfg, ct);
+        tok.Save();
+        Log.Write($"google: dang nhap xong, token het han {tok.ExpiresAt:yyyy-MM-dd HH:mm} UTC");
+    }
+
+    public static void Disconnect()
+    {
+        GoogleToken.Forget();
+        Log.Write("google: da ngat ket noi");
+    }
+
+    /// <summary>
+    /// Access token con han, tu lam moi khi can. Tra null neu chua noi hoac refresh
+    /// hong (Google thu hoi, doi mat khau, token het han vi app con o Testing...).
+    /// </summary>
+    public static async Task<string?> AccessTokenAsync(CancellationToken ct = default)
+    {
+        var cfg = GoogleConfig.Load();
+        var tok = GoogleToken.Load();
+        if (cfg is null || tok is null || tok.RefreshToken.Length == 0) return null;
+        if (!tok.Stale) return tok.AccessToken;
+
+        try
+        {
+            var fresh = await GoogleAuth.RefreshAsync(cfg, tok, ct);
+            fresh.Save();
+            Log.Write("google: lam moi access token");
+            return fresh.AccessToken;
+        }
+        catch (Exception e)
+        {
+            // Hay gap nhat: app con o trang thai Testing nen Google cho refresh token
+            // het han sau 7 ngay. Xoa di de lan sau hoi dang nhap lai cho ro rang.
+            Log.Write($"google: lam moi that bai, phai dang nhap lai: {e.Message}");
+            GoogleToken.Forget();
+            return null;
+        }
+    }
+}
+
+/// <summary>
 /// OAuth 2.0 cho app desktop: mo trinh duyet cho nguoi dung dong y, nhan ma tra ve qua
 /// mot HTTP listener tam tren loopback, doi lay token.
 ///
@@ -126,6 +180,12 @@ public static class GoogleAuth
         "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly";
 
     static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(30) };
+
+    /// <summary>
+    /// Cho nguoi dung bam xong. Phai rong tay: lan dau con phai qua man hinh canh bao
+    /// "Google hasn't verified this app" (Advanced -> Go to ...), them may cu bam nua.
+    /// </summary>
+    static readonly TimeSpan Patience = TimeSpan.FromMinutes(5);
 
     // ---------- PKCE ----------
 
@@ -188,7 +248,7 @@ public static class GoogleAuth
         Log.Write($"google: mo trinh duyet de dang nhap, loopback :{port}");
         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
 
-        var ctx = await listener.GetContextAsync().WaitAsync(TimeSpan.FromMinutes(3), ct);
+        var ctx = await listener.GetContextAsync().WaitAsync(Patience, ct);
         var q = ctx.Request.QueryString;
         string? code = q["code"], gotState = q["state"], err = q["error"];
 
