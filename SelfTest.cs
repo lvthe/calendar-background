@@ -189,6 +189,81 @@ static class SelfTest
                 Ok("sua tieu de / noi / ghi chu",
                     after.Title == "Doi ten" && after.Location == "Phong 3" && after.Note == "ghi chu");
 
+                // ---------- ngoai le cua chuoi lap ----------
+                // Google dung EXDATE va su kien ngoai le lien tuc ("tuan nay standup
+                // nghi", "buoi thu Ba doi sang thu Tu"), nen phan nay phai chac truoc
+                // khi dong bo bat cu thu gi.
+
+                var mon = new DateOnly(2026, 9, 7);          // thu Hai
+                long standup = s.Add(Row("Standup", mon, new TimeOnly(9, 0), "WEEKLY"));
+                var w4 = () => s.Range(mon, mon.AddDays(27));
+
+                Ok("chuoi tuan ban dau du 4 lan", w4().Count(o => o.Id == standup) == 4,
+                    string.Join(" ", w4().Where(o => o.Id == standup).Select(o => o.On.ToString("dd/MM"))));
+
+                // bo han mot lan
+                s.Skip(standup, mon.AddDays(7));
+                Ok("bo mot lan lap thi chi mat dung lan do",
+                    w4().Count(o => o.Id == standup) == 3
+                    && !w4().Any(o => o.Id == standup && o.On == mon.AddDays(7)),
+                    string.Join(" ", w4().Where(o => o.Id == standup).Select(o => o.On.ToString("dd/MM"))));
+
+                s.ClearOverride(standup, mon.AddDays(7));
+                Ok("bo ngoai le thi lan lap quay lai", w4().Count(o => o.Id == standup) == 4);
+
+                // doi rieng mot lan sang ngay khac, ca chuoi giu nguyen
+                var third = mon.AddDays(14);
+                s.Move(standup, third, third.AddDays(2), new TimeOnly(15, 0), null);
+                var moved = w4().FirstOrDefault(o => o.Id == standup && o.On == third.AddDays(2));
+                Ok("doi rieng mot lan: hien o ngay moi voi gio moi",
+                    moved is not null && moved.At == new TimeOnly(15, 0),
+                    moved is null ? "khong thay" : $"{moved.On:dd/MM} {moved.TimeLabel}");
+                Ok("doi rieng mot lan: KHONG keo ca chuoi theo",
+                    w4().Count(o => o.Id == standup) == 4
+                    && w4().Any(o => o.Id == standup && o.On == mon.AddDays(21) && o.At == new TimeOnly(9, 0)));
+
+                // Key phai giu ngay GOC, khong theo ngay moi — day la cai giu cho dau
+                // tick va dau da-bao khong bi lac khi doi ngay
+                Ok("lan lap bi doi van dinh danh theo ngay goc",
+                    moved is not null && moved.Key == third, moved?.Key.ToString("dd/MM") ?? "-");
+
+                s.SetDone(standup, moved!.Key, true);
+                Ok("tick lan lap bi doi thi dung no, khong lan sang lan khac",
+                    w4().Count(o => o.Id == standup && o.Done) == 1
+                    && w4().First(o => o.Id == standup && o.Done).On == third.AddDays(2));
+                s.SetDone(standup, moved.Key, false);
+
+                // doi ra ngoai cua so roi doi vao trong
+                var win = () => s.Range(third, third.AddDays(1));
+                Ok("doi ra ngoai cua so thi khong con trong cua so do",
+                    !win().Any(o => o.Id == standup), $"{win().Count(o => o.Id == standup)} lan");
+
+                s.Move(standup, mon.AddDays(21), third, null, null);
+                Ok("doi tu ngoai VAO trong cua so thi phai hien ra",
+                    win().Any(o => o.Id == standup && o.On == third && o.Key == mon.AddDays(21)),
+                    string.Join(" ", win().Where(o => o.Id == standup).Select(o => $"{o.On:dd/MM}(key {o.Key:dd/MM})")));
+
+                // nhac viec phai theo ngoai le
+                s.Skip(standup, mon.AddDays(7));
+                Ok("lan lap da bo thi khong nhac",
+                    !s.DueNow(mon.AddDays(7).ToDateTime(new TimeOnly(9, 30)), allDayAt, 12)
+                       .Any(o => o.Id == standup));
+                Ok("lan lap doi gio thi nhac theo gio moi",
+                    s.DueNow(third.AddDays(2).ToDateTime(new TimeOnly(15, 10)), allDayAt, 12)
+                       .Any(o => o.Id == standup)
+                    && !s.DueNow(third.AddDays(2).ToDateTime(new TimeOnly(9, 30)), allDayAt, 12)
+                       .Any(o => o.Id == standup));
+
+                // doi ngay goc cua chuoi thi moi override cu tro vao ngay khong con ton tai
+                s.Update(s.Get(standup)! with { Date = mon.AddDays(1) });
+                Ok("doi ngay goc chuoi thi don sach override cu",
+                    s.GetOverride(standup, mon.AddDays(7)) is null
+                    && s.GetOverride(standup, third) is null);
+
+                s.Skip(standup, mon.AddDays(8));
+                s.Delete(standup);
+                Ok("xoa task thi don ca override", s.GetOverride(standup, mon.AddDays(8)) is null);
+
                 // ---------- doi ngay roi tick xong ----------
 
                 long shifted = s.Add(Row("Doi lich", today, new TimeOnly(8, 0), "NONE"));

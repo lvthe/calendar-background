@@ -195,7 +195,7 @@ admin) để toast hiện tên "deskcal". Nếu WinRT lỗi hẳn thì tự đ�
 | `deskcal.exe --open` | Chạy nền và mở luôn cửa sổ lịch |
 | `deskcal.exe --add "Họp team\|mai\|14:30\|work\|WEEKLY"` | Thêm việc rồi thoát |
 | `deskcal.exe --test-toast` | Bắn một toast thử |
-| `deskcal.exe --self-test out.txt` | Chạy 61 test, ghi kết quả ra file |
+| `deskcal.exe --self-test out.txt` | Chạy 74 test, ghi kết quả ra file |
 
 `--add` chỉ bắt buộc phần tiêu đề, các phần sau có mặc định. Nối lại hết phần sau `--add`
 nên quên bọc nháy cũng không mất chữ. Tiện để gắn hotkey hoặc gọi từ script.
@@ -288,7 +288,7 @@ EventForm.cs     form thêm/sửa việc
 TrayApp.cs       NotifyIcon + context menu
 Theme.cs         màu theo theme hệ thống, font, MenuRenderer
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
-SelfTest.cs      61 test
+SelfTest.cs      74 test
 ```
 
 Bốn bảng: `tasks` (việc gốc), `completions(task_id, occurs_on)` (tick xong theo từng lần
@@ -305,9 +305,9 @@ App là WinExe nên không có stdout — kết quả ghi ra file, exit code 0 l
 Lưu ý PowerShell **không chờ** WinExe, phải dùng `Start-Process -Wait` nếu muốn đọc
 file ngay sau đó.
 
-61 test, phủ lịch lặp, điều kiện nhắc, nhắc-trước, parser ngày/giờ, ctor hai form,
-layout ô ghi chú, và bố cục
-cùng cờ cửa sổ của lớp mờ.
+74 test, phủ lịch lặp, điều kiện nhắc, nhắc-trước, parser ngày/giờ, ctor hai form,
+layout ô ghi chú, bố cục
+cùng cờ cửa sổ của lớp mờ, và ngoại lệ chuỗi lặp.
 
 ## So với bản Node cũ
 
@@ -328,8 +328,11 @@ Thư mục `data\` còn lại là bản gốc, xoá được.
 
 ## Còn thiếu
 
-- **Sửa việc lặp lại là sửa cả chuỗi.** Không sửa được riêng một lần lặp (kiểu "chỉ hoãn
-  buổi standup thứ Ba tuần này"). Form có ghi rõ dòng nhắc.
+- **Chưa có UI để bỏ/dời riêng một lần lặp.** Tầng dữ liệu đã làm được — bảng `overrides`
+  và `Store.Skip` / `Store.Move` cho phép "tuần này standup nghỉ" hay "buổi thứ Ba dời sang
+  thứ Tư", giữ nguyên cả chuỗi. Nhưng form sửa vẫn chỉ áp cho cả chuỗi, nên hiện chỉ dùng
+  được từ code. Làm phần này trước là để đồng bộ Google Calendar không mất dữ liệu, vì
+  Google dùng ngoại lệ liên tục.
 - **Chỉ có view tháng.** Không có tuần/ngày/danh sách như hình mẫu.
 - **Không có ngày lễ.** Muốn có vạch đỏ "Quốc khánh" như hình mẫu thì phải nhập tay
   hoặc thêm bảng holiday.

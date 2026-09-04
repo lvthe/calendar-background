@@ -15,7 +15,16 @@ public sealed record TaskRow(
     string? Location,
     string? Note);
 
-/// <summary>Mot lan xuat hien cu the cua task (task lap se co nhieu Occurrence).</summary>
+/// <summary>
+/// Mot lan xuat hien cu the cua task (task lap se co nhieu Occurrence).
+///
+/// <para><b>On khac Key.</b> On la ngay lan lap nay THUC SU dien ra — dung de ve len
+/// lich. Key la ngay lich lap SINH RA no, va la thu dinh danh lan lap do trong
+/// completions / notified / overrides. Hai cai chi khac nhau khi lan lap bi doi ngay
+/// rieng ("standup thu Ba tuan nay doi sang thu Tu"): doi xong thi On = thu Tu con Key
+/// van la thu Ba. Khoa theo Key nen dau tick va dau da-bao khong bi lac khi doi ngay,
+/// va doi ve cho cu thi van con nguyen.</para>
+/// </summary>
 public sealed record Occurrence(
     long Id,
     string Title,
@@ -25,7 +34,8 @@ public sealed record Occurrence(
     string Tag,
     string Rrule,
     int LeadMinutes,
-    bool Done)
+    bool Done,
+    DateOnly Key)
 {
     /// <summary>Thoi diem viec dien ra.</summary>
     public DateTime When(TimeOnly allDayAt) => On.ToDateTime(At ?? allDayAt);
@@ -98,6 +108,20 @@ public sealed class Store : IDisposable
               at        TEXT    NOT NULL DEFAULT (datetime('now')),
               PRIMARY KEY (task_id, occurs_on)
             );
+
+            -- Ngoai le cua chuoi lap: bo han mot lan, hoac doi rieng lan do sang ngay/gio
+            -- khac. occurs_on luon la ngay GOC do lich lap sinh ra — do la khoa dinh danh
+            -- lan lap, khong doi theo new_date.
+            CREATE TABLE IF NOT EXISTS overrides (
+              task_id   INTEGER NOT NULL,
+              occurs_on TEXT    NOT NULL,
+              skipped   INTEGER NOT NULL DEFAULT 0,
+              new_date  TEXT,                    -- null = giu ngay goc
+              new_time  TEXT,
+              new_end   TEXT,
+              PRIMARY KEY (task_id, occurs_on)
+            );
+            CREATE INDEX IF NOT EXISTS idx_ovr_new ON overrides(new_date);
         ");
         Migrate();
     }
@@ -162,10 +186,21 @@ public sealed class Store : IDisposable
 
     const string Cols = "id, title, due_date, due_time, end_time, tag, rrule, lead_minutes, location, note";
 
-    /// <summary>Moi lan lap roi vao [from, to], sap xep theo ngay roi gio.</summary>
+    /// <summary>Ngoai le cua mot lan lap: bo han, hoac doi sang ngay/gio khac.</summary>
+    public sealed record Override(bool Skipped, DateOnly? Date, TimeOnly? At, TimeOnly? End);
+
+    /// <summary>
+    /// Moi lan lap roi vao [from, to], sap xep theo ngay roi gio.
+    ///
+    /// Ngoai le lam chuyen nay kho hon ve: mot lan lap co the bi doi RA khoi cua so
+    /// (sinh trong [from,to] nhung new_date nam ngoai), hoac doi VAO trong (sinh o ngoai
+    /// nhung new_date roi vao trong). Chi quet lich lap trong [from,to] la sot ve thu
+    /// hai, nen phai hoi rieng cac override co new_date roi vao cua so.
+    /// </summary>
     public List<Occurrence> Range(DateOnly from, DateOnly to)
     {
         var done = LoadKeys("completions", from, to);
+        var ovr = LoadOverrides(from, to);
         var items = new List<Occurrence>();
 
         using var cmd = _db.CreateCommand();
@@ -175,13 +210,58 @@ public sealed class Store : IDisposable
         while (r.Read())
         {
             var t = ReadRow(r);
+
+            Occurrence? Make(DateOnly key)
+            {
+                ovr.TryGetValue((t.Id, key), out var o);
+                if (o is { Skipped: true }) return null;
+
+                var on = o?.Date ?? key;
+                if (on < from || on > to) return null;   // bi doi ra ngoai cua so
+                return new Occurrence(t.Id, t.Title, on, o?.At ?? t.At, o?.End ?? t.End,
+                                      t.Tag, t.Rrule, t.LeadMinutes,
+                                      done.Contains((t.Id, key)), key);
+            }
+
             foreach (var d in Occurrences(t.Date, t.Rrule, from, to))
-                items.Add(new Occurrence(t.Id, t.Title, d, t.At, t.End, t.Tag, t.Rrule,
-                                         t.LeadMinutes, done.Contains((t.Id, d))));
+                if (Make(d) is { } occ) items.Add(occ);
+
+            // lan lap sinh ra NGOAI cua so nhung bi doi vao trong
+            foreach (var ((id, key), o) in ovr)
+            {
+                if (id != t.Id || o.Skipped || o.Date is null) continue;
+                if (key >= from && key <= to) continue;             // da xu ly o vong tren
+                if (o.Date < from || o.Date > to) continue;
+                // chi nhan neu ngay goc that su la mot lan lap cua chuoi
+                if (!Occurrences(t.Date, t.Rrule, key, key).Any()) continue;
+                if (Make(key) is { } occ) items.Add(occ);
+            }
         }
 
         items.Sort(Compare);
         return items;
+    }
+
+    Dictionary<(long, DateOnly), Override> LoadOverrides(DateOnly from, DateOnly to)
+    {
+        var map = new Dictionary<(long, DateOnly), Override>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = @"
+            SELECT task_id, occurs_on, skipped, new_date, new_time, new_end FROM overrides
+            WHERE (occurs_on BETWEEN $f AND $t)
+               OR (new_date IS NOT NULL AND new_date BETWEEN $f AND $t)";
+        cmd.Parameters.AddWithValue("$f", from.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("$t", to.ToString("yyyy-MM-dd"));
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            map[(r.GetInt64(0), DateOnly.Parse(r.GetString(1)))] = new Override(
+                r.GetInt32(2) != 0,
+                r.IsDBNull(3) ? null : DateOnly.Parse(r.GetString(3)),
+                r.IsDBNull(4) ? null : ParseTime(r.GetString(4)),
+                r.IsDBNull(5) ? null : ParseTime(r.GetString(5)));
+        }
+        return map;
     }
 
     static int Compare(Occurrence a, Occurrence b) => a.On != b.On
@@ -223,7 +303,7 @@ public sealed class Store : IDisposable
         var due = new List<Occurrence>();
         foreach (var o in Range(from, to))
         {
-            if (o.Done || notified.Contains((o.Id, o.On))) continue;
+            if (o.Done || notified.Contains((o.Id, o.Key))) continue;
             if (now < o.FireAt(allDayAt)) continue;   // chua den luc bao
 
             // Han do tinh tu luc VIEC dien ra, khong phai tu luc dang le bao. Neu
@@ -284,6 +364,12 @@ public sealed class Store : IDisposable
         {
             Forget(t.Id);
         }
+
+        // Doi ngay goc hoac kieu lap thi lich lap sinh ra bo ngay khac han, nen moi
+        // override cu deu tro vao nhung ngay khong con la lan lap nao — thanh rac khong
+        // bao gio doc toi. Don luon.
+        if (old is not null && (old.Date != t.Date || old.Rrule != t.Rrule))
+            Key("DELETE FROM overrides WHERE task_id = $i", t.Id);
     }
 
     /// <summary>
@@ -324,11 +410,64 @@ public sealed class Store : IDisposable
         done ? "INSERT OR IGNORE INTO completions (task_id, occurs_on) VALUES ($i, $o)"
              : "DELETE FROM completions WHERE task_id = $i AND occurs_on = $o", taskId, on);
 
+    // ---------- ngoai le cua chuoi lap ----------
+
+    /// <summary>
+    /// Bo han mot lan lap ("tuan nay standup nghi"). occursOn la ngay GOC do lich lap
+    /// sinh ra, khong phai ngay da doi.
+    /// </summary>
+    public void Skip(long taskId, DateOnly occursOn) => Upsert(taskId, occursOn, true, null, null, null);
+
+    /// <summary>
+    /// Doi rieng mot lan lap sang ngay / gio khac, ca chuoi giu nguyen. Truyen null cho
+    /// date la giu ngay goc va chi doi gio.
+    /// </summary>
+    public void Move(long taskId, DateOnly occursOn, DateOnly? date, TimeOnly? at, TimeOnly? end) =>
+        Upsert(taskId, occursOn, false, date, at, end);
+
+    /// <summary>Bo ngoai le, tra lan lap ve dung lich chung.</summary>
+    public void ClearOverride(long taskId, DateOnly occursOn) =>
+        Key("DELETE FROM overrides WHERE task_id = $i AND occurs_on = $o", taskId, occursOn);
+
+    public Override? GetOverride(long taskId, DateOnly occursOn)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = @"SELECT skipped, new_date, new_time, new_end FROM overrides
+                            WHERE task_id = $i AND occurs_on = $o";
+        cmd.Parameters.AddWithValue("$i", taskId);
+        cmd.Parameters.AddWithValue("$o", occursOn.ToString("yyyy-MM-dd"));
+        using var r = cmd.ExecuteReader();
+        if (!r.Read()) return null;
+        return new Override(
+            r.GetInt32(0) != 0,
+            r.IsDBNull(1) ? null : DateOnly.Parse(r.GetString(1)),
+            r.IsDBNull(2) ? null : ParseTime(r.GetString(2)),
+            r.IsDBNull(3) ? null : ParseTime(r.GetString(3)));
+    }
+
+    void Upsert(long taskId, DateOnly occursOn, bool skipped, DateOnly? date, TimeOnly? at, TimeOnly? end)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = @"
+            INSERT INTO overrides (task_id, occurs_on, skipped, new_date, new_time, new_end)
+            VALUES ($i, $o, $s, $d, $t, $e)
+            ON CONFLICT(task_id, occurs_on) DO UPDATE SET
+                skipped = $s, new_date = $d, new_time = $t, new_end = $e";
+        cmd.Parameters.AddWithValue("$i", taskId);
+        cmd.Parameters.AddWithValue("$o", occursOn.ToString("yyyy-MM-dd"));
+        cmd.Parameters.AddWithValue("$s", skipped ? 1 : 0);
+        cmd.Parameters.AddWithValue("$d", date?.ToString("yyyy-MM-dd") ?? (object)DBNull.Value);
+        cmd.Parameters.AddWithValue("$t", Time(at));
+        cmd.Parameters.AddWithValue("$e", Time(end));
+        cmd.ExecuteNonQuery();
+    }
+
     public void Delete(long taskId)
     {
         Key("DELETE FROM tasks WHERE id = $i", taskId);
         Key("DELETE FROM completions WHERE task_id = $i", taskId);
         Key("DELETE FROM notified WHERE task_id = $i", taskId);
+        Key("DELETE FROM overrides WHERE task_id = $i", taskId);
     }
 
     public void MarkNotified(long taskId, DateOnly on) =>

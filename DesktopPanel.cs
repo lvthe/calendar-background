@@ -215,8 +215,8 @@ public sealed class DesktopPanel : Form
 
     void Toggle(Occurrence o)
     {
-        _store.SetDone(o.Id, o.On, !o.Done);
-        Log.Write((o.Done ? "nen: mo lai #" : "nen: xong #") + o.Id + " " + o.On.ToString("yyyy-MM-dd"));
+        _store.SetDone(o.Id, o.Key, !o.Done);
+        Log.Write((o.Done ? "nen: mo lai #" : "nen: xong #") + o.Id + " " + o.Key.ToString("yyyy-MM-dd"));
         Done();
     }
 
@@ -246,7 +246,7 @@ public sealed class DesktopPanel : Form
         }
 
         if (f.Result is null) return;
-        _store.UpdateAndSetDone(f.Result, o.On, f.DoneChecked);
+        _store.UpdateAndSetDone(f.Result, o.Key, f.DoneChecked);
         Log.Write($"nen: sua #{o.Id} \"{f.Result.Title}\" {f.Result.Date:yyyy-MM-dd}");
         Done();
     }

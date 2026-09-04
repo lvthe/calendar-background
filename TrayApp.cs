@@ -144,7 +144,7 @@ public sealed class TrayApp : ApplicationContext
             // click thuong de tick nhanh vi do la thao tac hay dung nhat;
             // muon sua thi Shift de nhay sang cua so lich
             if (Control.ModifierKeys.HasFlag(Keys.Shift)) OpenCalendar(o.On);
-            else _store.SetDone(o.Id, o.On, !o.Done);
+            else _store.SetDone(o.Id, o.Key, !o.Done);
             _window?.Reload();
             _panel?.Reload();
         };

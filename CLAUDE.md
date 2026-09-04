@@ -18,7 +18,7 @@ dotnet build
 dotnet publish -c Release -o dist
 ```
 
-Chạy test (61 test):
+Chạy test (74 test):
 
 ```
 bin\Debug\net10.0-windows10.0.19041.0\win-x64\deskcal.exe --self-test out.txt
@@ -56,11 +56,17 @@ EventForm.cs     form thêm/sửa việc
 DesktopPanel.cs  cua so mo ghim day z-order, bam duoc
 TrayApp.cs       NotifyIcon + context menu
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
-SelfTest.cs      61 test
+SelfTest.cs      74 test
 ```
 
-Bốn bảng SQLite: `tasks` (việc gốc), `completions(task_id, occurs_on)` (xong theo từng
-lần lặp), `notified(task_id, occurs_on)` (đã bắn toast).
+Năm bảng SQLite: `tasks` (việc gốc), `completions(task_id, occurs_on)` (xong theo từng
+lần lặp), `notified(task_id, occurs_on)` (đã bắn toast), `overrides(task_id, occurs_on)`
+(bỏ hoặc dời riêng một lần lặp).
+
+**`Occurrence.On` khác `Occurrence.Key`.** `On` là ngày lần lặp thực sự diễn ra — dùng để
+vẽ. `Key` là ngày lịch lặp sinh ra nó, và là thứ định danh nó trong `completions` /
+`notified` / `overrides`. Hai cái chỉ khác nhau khi lần lặp bị dời riêng. **Khoá theo
+`Key`, hiển thị theo `On`** — lẫn lộn là dấu tick bay mất khi dời ngày.
 
 ## Quy ước
 
@@ -140,7 +146,8 @@ Muốn chụp form/popup thì bấm chuột bằng `mouse_event` vào đúng to�
 
 ## Còn nợ
 
-- **Sửa việc lặp lại là sửa cả chuỗi.** Không hoãn riêng được một lần lặp.
+- **Chưa có UI để bỏ/dời riêng một lần lặp.** Tầng `Store` đã làm được
+  (`Skip` / `Move` / `ClearOverride`), nhưng form sửa vẫn chỉ áp cho cả chuỗi.
 - Chỉ có view tháng, không có tuần/ngày/danh sách.
 - Không có ngày lễ.
 - Toast không có nút bấm — app unpackaged muốn có nút "Xong" trên toast thì phải đăng

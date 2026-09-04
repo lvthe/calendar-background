@@ -62,7 +62,7 @@ public sealed class Reminder
                     break;
                 }
                 Toast.Show(o.Title, Body(o, now));
-                _store.MarkNotified(o.Id, o.On);
+                _store.MarkNotified(o.Id, o.Key);
                 Log.Write($"nhac: da bao #{o.Id} \"{o.Title}\" ({o.On:yyyy-MM-dd} {o.RangeLabel}, lead={o.LeadMinutes}p)");
                 sent++;
             }

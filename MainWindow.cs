@@ -183,8 +183,8 @@ public sealed class MainWindow : Form
     /// <summary>Bam o trang thai: doi xong / chua xong ngay tai lich, khong mo form.</summary>
     void Toggle(Occurrence o)
     {
-        _store.SetDone(o.Id, o.On, !o.Done);
-        Log.Write((o.Done ? "mo lai #" : "xong #") + o.Id + " " + o.Title + " " + o.On.ToString("yyyy-MM-dd"));
+        _store.SetDone(o.Id, o.Key, !o.Done);
+        Log.Write((o.Done ? "mo lai #" : "xong #") + o.Id + " " + o.Title + " " + o.Key.ToString("yyyy-MM-dd"));
         Done();
     }
 
@@ -205,9 +205,9 @@ public sealed class MainWindow : Form
         }
 
         if (f.Result is null) return;
-        var on = _store.UpdateAndSetDone(f.Result, o.On, f.DoneChecked);
+        var on = _store.UpdateAndSetDone(f.Result, o.Key, f.DoneChecked);
         Log.Write($"sua #{o.Id} \"{f.Result.Title}\" {f.Result.Date:yyyy-MM-dd} lead={f.Result.LeadMinutes}"
-                  + (on == o.On ? "" : $" (tick doi sang {on:yyyy-MM-dd})"));
+                  + (on == o.Key ? "" : $" (tick doi sang {on:yyyy-MM-dd})"));
         Done();
     }
 
