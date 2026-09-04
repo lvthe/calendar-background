@@ -59,6 +59,8 @@ EventForm.cs     form thêm/sửa việc
 DesktopPanel.cs  cua so mo ghim day z-order, bam duoc
 TrayApp.cs       NotifyIcon + context menu
 Google.cs        OAuth loopback + PKCE, lưu/làm mới token, gọi Calendar API
+GoogleSync.cs    chọn lịch đồng bộ + rào chặn ghi nhầm lịch chia sẻ
+GoogleRrule.cs   dịch RRULE (RFC 5545) qua lại với 5 kiểu lặp của deskcal
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
 SelfTest.cs      83 test
 ```

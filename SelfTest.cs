@@ -355,6 +355,46 @@ static class SelfTest
             new GoogleToken { ExpiresAt = DateTime.UtcNow.AddMinutes(1) }.Stale
             && !new GoogleToken { ExpiresAt = DateTime.UtcNow.AddMinutes(30) }.Stale);
 
+        // ---------- dich RRULE cua Google ----------
+        // Nhan bua mot RRULE khong bieu dien duoc thi lich hien sai VINH VIEN ma khong
+        // ai bao. Nen phan lon test o day la kiem no biet TU CHOI.
+
+        var monday = new DateOnly(2026, 9, 7);   // thu Hai
+
+        string? Rr(params string[] lines) => GoogleRrule.FromGoogle(lines, monday);
+
+        Ok("nhan FREQ=DAILY", Rr("RRULE:FREQ=DAILY") == "DAILY");
+        Ok("nhan FREQ=WEEKLY khong BYDAY", Rr("RRULE:FREQ=WEEKLY") == "WEEKLY");
+        Ok("nhan FREQ=MONTHLY", Rr("RRULE:FREQ=MONTHLY") == "MONTHLY");
+        Ok("nhan FREQ=YEARLY", Rr("RRULE:FREQ=YEARLY") == "YEARLY");
+        Ok("nhan INTERVAL=1 vi no la mac dinh", Rr("RRULE:FREQ=DAILY;INTERVAL=1") == "DAILY");
+        Ok("nhan BYDAY mot thu neu dung thu cua ngay bat dau",
+            Rr("RRULE:FREQ=WEEKLY;BYDAY=MO") == "WEEKLY");
+
+        // Tu day tro xuong deu PHAI tra null
+        Ok("tu choi INTERVAL=2 (lap cach tuan)", Rr("RRULE:FREQ=WEEKLY;INTERVAL=2") is null);
+        Ok("tu choi COUNT (chuoi huu han)", Rr("RRULE:FREQ=WEEKLY;COUNT=10") is null);
+        Ok("tu choi UNTIL (co ngay ket thuc)", Rr("RRULE:FREQ=WEEKLY;UNTIL=20261231T000000Z") is null);
+        Ok("tu choi BYDAY nhieu thu", Rr("RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR") is null);
+        Ok("tu choi BYDAY khac thu cua ngay bat dau", Rr("RRULE:FREQ=WEEKLY;BYDAY=TH") is null);
+        Ok("tu choi MONTHLY BYDAY (thu Hai thu 2 cua thang)", Rr("RRULE:FREQ=MONTHLY;BYDAY=2MO") is null);
+        Ok("tu choi BYMONTHDAY", Rr("RRULE:FREQ=MONTHLY;BYMONTHDAY=15") is null);
+        Ok("tu choi FREQ la gi do khong biet", Rr("RRULE:FREQ=HOURLY") is null);
+        Ok("tu choi khi khong co dong RRULE", Rr("EXDATE;VALUE=DATE:20260914") is null);
+        Ok("tu choi khi recurrence rong", GoogleRrule.FromGoogle(null, monday) is null);
+
+        Ok("deskcal -> RRULE", GoogleRrule.ToGoogle("WEEKLY") == "RRULE:FREQ=WEEKLY"
+            && GoogleRrule.ToGoogle("NONE") is null);
+
+        Ok("ma thu theo RFC 5545",
+            GoogleRrule.Code(DayOfWeek.Monday) == "MO" && GoogleRrule.Code(DayOfWeek.Sunday) == "SU");
+
+        // ---------- rao chan lich Google ----------
+        // Tai khoan nay co lich "Gia dinh" chia se. Ghi nham vao do la ca nha nhin thay.
+        Ok("nhan ra lich chia se",
+            GoogleSync.IsShared("family14886589866066830721@group.calendar.google.com")
+            && !GoogleSync.IsShared("ai.do@gmail.com"));
+
         // ---------- bo cuc lop lich tren desktop ----------
 
         // Panel phai nam gon trong man va lech ve ben PHAI (icon desktop o ben trai),
