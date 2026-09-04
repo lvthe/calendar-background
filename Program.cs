@@ -71,6 +71,19 @@ static class Program
             catch (Exception e) { Log.Write($"google: goi API that bai: {e.Message}"); return 1; }
         }
 
+        // Keo su kien tu Google ve. Chay tay de kiem; sau nay se goi tu vong quet 60s.
+        if (args.Contains("--google-pull"))
+        {
+            try
+            {
+                using var store = new Store(Paths.Db);
+                var r = GooglePull.RunAsync(store).GetAwaiter().GetResult();
+                Log.Write($"google: --google-pull xong: {r}");
+                return 0;
+            }
+            catch (Exception e) { Log.Write($"google: keo that bai: {e.Message}"); return 1; }
+        }
+
         if (args.Contains("--google-logout"))
         {
             GoogleAccount.Disconnect();

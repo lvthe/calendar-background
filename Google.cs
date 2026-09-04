@@ -369,6 +369,52 @@ public static class GoogleApi
         return list;
     }
 
+    /// <summary>
+    /// Su kien trong khoang [from, to] cua lich DANG CHON. Khong nhan tham so lich —
+    /// dich luon lay tu GoogleSync.Target de khong the goi nham sang lich chia se.
+    ///
+    /// showDeleted=true de thay ca su kien da huy: do la cach duy nhat biet ben Google
+    /// da xoa cai gi. singleEvents=false de giu nguyen chuoi lap thay vi gian ra.
+    /// </summary>
+    public static async Task<List<JsonElement>> EventsAsync(DateOnly from, DateOnly to,
+                                                            CancellationToken ct = default)
+    {
+        string cal = Uri.EscapeDataString(GoogleSync.Target);
+        var all = new List<JsonElement>();
+        string? page = null;
+
+        do
+        {
+            string q = $"/calendars/{cal}/events"
+                     + $"?timeMin={Uri.EscapeDataString(Rfc3339(from))}"
+                     + $"&timeMax={Uri.EscapeDataString(Rfc3339(to))}"
+                     + "&singleEvents=false&showDeleted=true&maxResults=2500"
+                     + (page is null ? "" : $"&pageToken={Uri.EscapeDataString(page)}");
+
+            using var doc = await GetAsync(q, ct);
+            if (doc.RootElement.TryGetProperty("items", out var items))
+                foreach (var it in items.EnumerateArray()) all.Add(it.Clone());
+
+            page = doc.RootElement.TryGetProperty("nextPageToken", out var np) ? np.GetString() : null;
+        }
+        while (page is not null);
+
+        return all;
+    }
+
+    /// <summary>
+    /// RFC 3339 co offset — Google bat buoc phai co. DateOnly.ToDateTime cho ra Kind =
+    /// Unspecified, ma format "K" voi Unspecified tra ve CHUOI RONG, nen ghep thang la
+    /// gui di "2026-08-04T00:00:00" khong offset va Google tra 400 Bad Request khong noi
+    /// ly do. Phai dung DateTimeOffset voi offset dia phuong.
+    /// </summary>
+    public static string Rfc3339(DateOnly d)
+    {
+        var local = d.ToDateTime(TimeOnly.MinValue);
+        return new DateTimeOffset(local, TimeZoneInfo.Local.GetUtcOffset(local))
+            .ToString("yyyy-MM-dd'T'HH:mm:sszzz");
+    }
+
     static async Task<JsonDocument> GetAsync(string path, CancellationToken ct)
     {
         var token = await GoogleAccount.AccessTokenAsync(ct)

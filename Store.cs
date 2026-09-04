@@ -13,7 +13,9 @@ public sealed record TaskRow(
     string Rrule,
     int LeadMinutes,
     string? Location,
-    string? Note);
+    string? Note,
+    string? GoogleId = null,
+    string? GoogleUpdated = null);
 
 /// <summary>
 /// Mot lan xuat hien cu the cua task (task lap se co nhieu Occurrence).
@@ -139,6 +141,13 @@ public sealed class Store : IDisposable
         if (!cols.Contains("end_time")) Raw("ALTER TABLE tasks ADD COLUMN end_time TEXT");
         if (!cols.Contains("lead_minutes")) Raw("ALTER TABLE tasks ADD COLUMN lead_minutes INTEGER NOT NULL DEFAULT 0");
         if (!cols.Contains("location")) Raw("ALTER TABLE tasks ADD COLUMN location TEXT");
+
+        // Lien ket voi Google. google_id la id su kien ben Google; google_updated la moc
+        // thoi gian Google bao lan sua cuoi, dung de biet ben nao moi hon khi ca hai cung
+        // doi. NULL ca hai = viec tao trong deskcal, chua len Google.
+        if (!cols.Contains("google_id")) Raw("ALTER TABLE tasks ADD COLUMN google_id TEXT");
+        if (!cols.Contains("google_updated")) Raw("ALTER TABLE tasks ADD COLUMN google_updated TEXT");
+        Raw("CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_gid ON tasks(google_id) WHERE google_id IS NOT NULL");
     }
 
     // ---------- lich lap ----------
@@ -184,7 +193,7 @@ public sealed class Store : IDisposable
 
     // ---------- doc ----------
 
-    const string Cols = "id, title, due_date, due_time, end_time, tag, rrule, lead_minutes, location, note";
+    const string Cols = "id, title, due_date, due_time, end_time, tag, rrule, lead_minutes, location, note, google_id, google_updated";
 
     /// <summary>Ngoai le cua mot lan lap: bo han, hoac doi sang ngay/gio khac.</summary>
     public sealed record Override(bool Skipped, DateOnly? Date, TimeOnly? At, TimeOnly? End);
@@ -287,7 +296,9 @@ public sealed class Store : IDisposable
         r.GetString(6),
         r.IsDBNull(7) ? 0 : r.GetInt32(7),
         r.IsDBNull(8) ? null : r.GetString(8),
-        r.IsDBNull(9) ? null : r.GetString(9));
+        r.IsDBNull(9) ? null : r.GetString(9),
+        r.IsDBNull(10) ? null : r.GetString(10),
+        r.IsDBNull(11) ? null : r.GetString(11));
 
     /// <summary>
     /// Lan lap den luc phai ban toast, chua tick xong, chua tung ban.
@@ -340,8 +351,9 @@ public sealed class Store : IDisposable
     {
         using var cmd = _db.CreateCommand();
         cmd.CommandText = @"
-            INSERT INTO tasks (title, due_date, due_time, end_time, tag, rrule, lead_minutes, location, note)
-            VALUES ($ti, $d, $t, $e, $g, $r, $l, $loc, $n) RETURNING id";
+            INSERT INTO tasks (title, due_date, due_time, end_time, tag, rrule, lead_minutes,
+                               location, note, google_id, google_updated)
+            VALUES ($ti, $d, $t, $e, $g, $r, $l, $loc, $n, $gid, $gup) RETURNING id";
         Bind(cmd, t);
         return (long)cmd.ExecuteScalar()!;
     }
@@ -352,7 +364,8 @@ public sealed class Store : IDisposable
         using var cmd = _db.CreateCommand();
         cmd.CommandText = @"
             UPDATE tasks SET title=$ti, due_date=$d, due_time=$t, end_time=$e, tag=$g,
-                             rrule=$r, lead_minutes=$l, location=$loc, note=$n
+                             rrule=$r, lead_minutes=$l, location=$loc, note=$n,
+                             google_id=$gid, google_updated=$gup
             WHERE id=$i";
         Bind(cmd, t);
         cmd.Parameters.AddWithValue("$i", t.Id);
@@ -403,6 +416,29 @@ public sealed class Store : IDisposable
         cmd.Parameters.AddWithValue("$l", t.LeadMinutes);
         cmd.Parameters.AddWithValue("$loc", Str(t.Location));
         cmd.Parameters.AddWithValue("$n", Str(t.Note));
+        cmd.Parameters.AddWithValue("$gid", Str(t.GoogleId));
+        cmd.Parameters.AddWithValue("$gup", Str(t.GoogleUpdated));
+    }
+
+    /// <summary>Tim viec da lien ket voi mot su kien Google.</summary>
+    public TaskRow? ByGoogleId(string googleId)
+    {
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = $"SELECT {Cols} FROM tasks WHERE google_id = $g";
+        cmd.Parameters.AddWithValue("$g", googleId);
+        using var r = cmd.ExecuteReader();
+        return r.Read() ? ReadRow(r) : null;
+    }
+
+    /// <summary>Moi google_id dang co trong DB — de doi chieu xem ben Google da xoa cai nao.</summary>
+    public Dictionary<string, long> GoogleIds()
+    {
+        var map = new Dictionary<string, long>();
+        using var cmd = _db.CreateCommand();
+        cmd.CommandText = "SELECT google_id, id FROM tasks WHERE google_id IS NOT NULL";
+        using var r = cmd.ExecuteReader();
+        while (r.Read()) map[r.GetString(0)] = r.GetInt64(1);
+        return map;
     }
 
     /// <summary>Tick xong / bo tick dung mot lan lap, khong dung ca chuoi.</summary>

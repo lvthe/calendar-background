@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Text;
 
 namespace Deskcal;
@@ -388,6 +389,59 @@ static class SelfTest
 
         Ok("ma thu theo RFC 5545",
             GoogleRrule.Code(DayOfWeek.Monday) == "MO" && GoogleRrule.Code(DayOfWeek.Sunday) == "SU");
+
+        // ---------- dich su kien Google ----------
+
+        static JsonElement Ev(string json) => JsonDocument.Parse(json).RootElement.Clone();
+
+        // Viec co gio: Google tra thoi diem co offset, deskcal luu gio tran theo may.
+        var timed = GoogleMap.FromEvent(Ev("""{"id":"ev1","status":"confirmed","summary":"Họp team","updated":"2026-09-01T10:00:00.000Z","location":"Phòng 3","description":"ghi chú","start":{"dateTime":"2026-09-07T09:00:00+07:00","timeZone":"Asia/Ho_Chi_Minh"},"end":{"dateTime":"2026-09-07T10:30:00+07:00"}}"""));
+        var localNine = TimeOnly.FromDateTime(
+            DateTimeOffset.Parse("2026-09-07T09:00:00+07:00").ToLocalTime().DateTime);
+        Ok("dich viec co gio",
+            timed.Row is { Title: "Họp team", GoogleId: "ev1", Location: "Phòng 3", Note: "ghi chú" }
+            && timed.Row.At == localNine,
+            timed.Row is null ? timed.Skip : $"{timed.Row.Date:dd/MM} {timed.Row.At}");
+
+        // Viec ca ngay: "date" la ngay TRAN. Doi mui gio cho nay la lech han mot ngay.
+        var allDayEv = GoogleMap.FromEvent(Ev("""{"id":"ev2","status":"confirmed","summary":"Nghỉ lễ","start":{"date":"2026-09-02"},"end":{"date":"2026-09-03"}}"""));
+        Ok("viec ca ngay giu nguyen ngay, khong doi mui gio",
+            allDayEv.Row is { At: null, End: null } && allDayEv.Row.Date == new DateOnly(2026, 9, 2),
+            allDayEv.Row?.Date.ToString("yyyy-MM-dd") ?? allDayEv.Skip);
+
+        Ok("su kien da huy thi bo qua",
+            GoogleMap.FromEvent(Ev("""{"id":"ev3","status":"cancelled"}""")) is { Row: null, Skip: not null });
+
+        Ok("khong co tieu de thi van nhan, dat ten thay",
+            GoogleMap.FromEvent(Ev("""{"id":"ev4","status":"confirmed","start":{"date":"2026-09-05"}}""")).Row?.Title
+            == "(không tiêu đề)");
+
+        // Lap bieu dien duoc -> thanh chuoi cua deskcal
+        Ok("lap tuan don gian thanh WEEKLY",
+            GoogleMap.FromEvent(Ev("""{"id":"ev5","status":"confirmed","summary":"Standup","recurrence":["RRULE:FREQ=WEEKLY"],"start":{"dateTime":"2026-09-07T09:00:00+07:00"},"end":{"dateTime":"2026-09-07T09:15:00+07:00"}}""")).Row?.Rrule == "WEEKLY");
+
+        // Lap KHONG bieu dien duoc -> phai bao gian ra, tuyet doi khong nhan bua
+        var oddRule = GoogleMap.FromEvent(Ev("""{"id":"ev6","status":"confirmed","summary":"Cách tuần","recurrence":["RRULE:FREQ=WEEKLY;INTERVAL=2"],"start":{"dateTime":"2026-09-07T09:00:00+07:00"}}"""));
+        Ok("lap khong bieu dien duoc thi bao gian ra, khong nhan bua",
+            oddRule is { Row: null, NeedsExpanding: true }, oddRule.Skip);
+
+        // Ngoai le cua chuoi: Google gan qua recurringEventId + originalStartTime
+        var exInstance = Ev("""{"id":"ev5_20260914T020000Z","status":"confirmed","summary":"Standup","recurringEventId":"ev5","originalStartTime":{"dateTime":"2026-09-14T09:00:00+07:00"},"start":{"dateTime":"2026-09-16T09:00:00+07:00"}}""");
+        Ok("nhan ra ngoai le cua chuoi va ngay goc cua no",
+            GoogleMap.ParentId(exInstance) == "ev5"
+            && GoogleMap.OriginalStart(exInstance) == new DateOnly(2026, 9, 14),
+            GoogleMap.OriginalStart(exInstance)?.ToString("dd/MM") ?? "-");
+
+        Ok("lan lap bi bo la ngoai le co status cancelled",
+            GoogleMap.IsCancelled(Ev("""{"id":"ev5_x","status":"cancelled","recurringEventId":"ev5","originalStartTime":{"date":"2026-09-21"}}""")));
+
+        // Google bat buoc RFC 3339 CO offset. Ghep thang tu DateOnly la ra chuoi khong
+        // offset va Google tra 400 Bad Request khong noi ly do — mat thi gio moi lan ra.
+        var stamp = GoogleApi.Rfc3339(new DateOnly(2026, 9, 7));
+        Ok("timeMin co offset mui gio, dung RFC 3339",
+            stamp.StartsWith("2026-09-07T00:00:00")
+            && (stamp.EndsWith("Z") || stamp.Contains('+') || stamp.LastIndexOf('-') > 8),
+            stamp);
 
         // ---------- rao chan lich Google ----------
         // Tai khoan nay co lich "Gia dinh" chia se. Ghi nham vao do la ca nha nhin thay.

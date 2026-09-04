@@ -61,6 +61,8 @@ TrayApp.cs       NotifyIcon + context menu
 Google.cs        OAuth loopback + PKCE, lưu/làm mới token, gọi Calendar API
 GoogleSync.cs    chọn lịch đồng bộ + rào chặn ghi nhầm lịch chia sẻ
 GoogleRrule.cs   dịch RRULE (RFC 5545) qua lại với 5 kiểu lặp của deskcal
+GoogleMap.cs     dịch sự kiện Google sang TaskRow, xử lý múi giờ
+GooglePull.cs    kéo sự kiện từ Google về
 Infra.cs         đường dẫn, log, autostart, vẽ icon lúc chạy
 SelfTest.cs      83 test
 ```
